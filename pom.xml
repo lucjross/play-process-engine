@@ -7,12 +7,19 @@
 
   <groupId>io.wellsmith</groupId>
   <artifactId>play-process-engine</artifactId>
+  <packaging>pom</packaging>
   <version>0.0.1-SNAPSHOT</version>
+  <modules>
+    <module>domain</module>
+  </modules>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-    <kotlin.version>1.2.30</kotlin.version>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+
+    <kotlin.version>1.2.31</kotlin.version>
     <kotlin.compiler.incremental>true</kotlin.compiler.incremental><!-- for performance -->
   </properties>
 
