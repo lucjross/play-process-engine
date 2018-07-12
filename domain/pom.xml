@@ -25,7 +25,9 @@
             <configuration>
               <schemas>
                 <schema>
-                  <url>https://www.omg.org/spec/BPMN/20100501/Semantic.xsd</url>
+                  <fileset>
+                    <directory>${project.basedir}/src/main/resources/spec/BPMN/20100501</directory>
+                  </fileset>
                 </schema>
               </schemas>
             </configuration>
