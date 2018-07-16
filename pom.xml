@@ -10,8 +10,10 @@
   <packaging>pom</packaging>
   <version>0.0.1-SNAPSHOT</version>
   <modules>
-    <module>domain</module>
+    <module>domain-bpmn</module>
     <module>serde</module>
+    <module>rest-app</module>
+    <module>service</module>
   </modules>
 
   <properties>
@@ -24,6 +26,7 @@
     <kotlin.compiler.incremental>true</kotlin.compiler.incremental><!-- for performance -->
 
     <junit-jupiter.version>5.1.1</junit-jupiter.version>
+    <spring.version>5.0.7.RELEASE</spring.version>
   </properties>
 
   <dependencies>
@@ -66,7 +69,12 @@
         <artifactId>kotlin-maven-plugin</artifactId>
         <groupId>org.jetbrains.kotlin</groupId>
         <version>${kotlin.version}</version>
-
+        <configuration>
+          <compilerPlugins>
+            <plugin>spring</plugin>
+          </compilerPlugins>
+          <jvmTarget>1.8</jvmTarget>
+        </configuration>
         <executions>
           <execution>
             <id>compile</id>
@@ -74,7 +82,6 @@
               <goal>compile</goal>
             </goals>
           </execution>
-
           <execution>
             <id>test-compile</id>
             <goals>

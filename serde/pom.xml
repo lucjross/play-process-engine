@@ -12,7 +12,7 @@
   <artifactId>play-process-engine-serde</artifactId>
 
   <properties>
-    <com.sun.xml.bind-jaxb.version>2.3.0.1</com.sun.xml.bind-jaxb.version>
+    <xml.bind-jaxb.version>2.3.0</xml.bind-jaxb.version>
   </properties>
 
   <dependencies>
@@ -26,16 +26,29 @@
       <artifactId>play-process-engine-domain</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
+
+    <!-- these are no longer on the default classpath with JDK 9+ -->
+    <dependency>
+      <groupId>javax.xml.bind</groupId>
+      <artifactId>jaxb-api</artifactId>
+      <version>${xml.bind-jaxb.version}</version>
+    </dependency>
     <dependency>
       <groupId>com.sun.xml.bind</groupId>
       <artifactId>jaxb-impl</artifactId>
-      <version>${com.sun.xml.bind-jaxb.version}</version>
+      <version>${xml.bind-jaxb.version}</version>
     </dependency>
     <dependency>
       <groupId>com.sun.xml.bind</groupId>
       <artifactId>jaxb-core</artifactId>
-      <version>${com.sun.xml.bind-jaxb.version}</version>
+      <version>${xml.bind-jaxb.version}</version>
     </dependency>
+    <dependency>
+      <groupId>javax.activation</groupId>
+      <artifactId>activation</artifactId>
+      <version>1.1.1</version>
+    </dependency>
+
     <dependency>
       <groupId>org.xmlunit</groupId>
       <artifactId>xmlunit-core</artifactId>

@@ -16,13 +16,16 @@ import javax.xml.transform.stream.StreamSource
  * "The Definitions class is the outermost containing object for all BPMN elements."
  * (§8.11, Definitions)
  */
-class BPMN20Serde: Serde<TDefinitions> {
+class BPMN20Serde(private val marshaller: Jaxb2Marshaller): Serde<TDefinitions> {
 
-  private val marshaller = marshaller()
   private val objectFactory = ObjectFactory()
 
   companion object {
 
+    /**
+     * Must be initialized before use by defining it as a bean
+     * or by calling [Jaxb2Marshaller.afterPropertiesSet].
+     */
     fun marshaller(): Jaxb2Marshaller {
       val marshaller = Jaxb2Marshaller()
       marshaller.setPackagesToScan(
@@ -43,6 +46,9 @@ class BPMN20Serde: Serde<TDefinitions> {
     }
   }
 
+  /**
+   * @throws org.springframework.oxm.XmlMappingException
+   */
   override fun serialize(obj: TDefinitions): ByteArrayOutputStream {
     val outputStream = ByteArrayOutputStream()
     val result = StreamResult(outputStream)
@@ -50,6 +56,9 @@ class BPMN20Serde: Serde<TDefinitions> {
     return outputStream
   }
 
+  /**
+   * @throws org.springframework.oxm.XmlMappingException
+   */
   override fun deserialize(inputStream: InputStream): TDefinitions {
     val el = marshaller.unmarshal(StreamSource(inputStream))
     return (el as JAXBElement<*>).value as TDefinitions

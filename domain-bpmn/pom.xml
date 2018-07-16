@@ -9,7 +9,27 @@
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>play-process-engine-domain</artifactId>
+  <artifactId>play-process-engine-domain-bpmn</artifactId>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.hateoas</groupId>
+      <artifactId>spring-hateoas</artifactId>
+      <version>0.24.0.RELEASE</version>
+      <exclusions>
+        <exclusion>
+          <!-- old (4.x) spring modules -->
+          <groupId>org.springframework</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.9.6</version>
+    </dependency>
+  </dependencies>
 
   <build>
     <plugins>
