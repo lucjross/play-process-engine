@@ -10,7 +10,7 @@ import java.util.UUID
 
 @RestController
 @RequestMapping(path = ["bpmn20/definitions"])
-class BPMN20DefinitionsController(val bpmn20XMLService: BPMN20XMLService) {
+class BPMN20DefinitionsController(val bpmn20XMLService: BPMN20XMLService<*>) {
 
   @GetMapping(path = ["/{id}"], produces = [MediaType.APPLICATION_XML_VALUE])
   fun getDefinitionsXML(@PathVariable id: UUID): String {

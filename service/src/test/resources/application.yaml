@@ -1,0 +1,7 @@
+spring:
+  data:
+    cassandra:
+      contact-points: localhost
+      port: 9142
+      keyspace-name: play
+      schema-action: create_if_not_exists

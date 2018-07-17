@@ -1,4 +1,4 @@
-package io.wellsmith.playprocessengine.domain.bpmn
+package io.wellsmith.playprocessengine.service.command
 
 import java.util.UUID
 

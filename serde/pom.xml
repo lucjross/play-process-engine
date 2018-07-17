@@ -23,7 +23,7 @@
     </dependency>
     <dependency>
       <groupId>io.wellsmith</groupId>
-      <artifactId>play-process-engine-domain</artifactId>
+      <artifactId>play-process-engine-domain-bpmn</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
 
