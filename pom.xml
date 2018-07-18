@@ -6,7 +6,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.wellsmith</groupId>
-  <artifactId>play-process-engine</artifactId>
+  <artifactId>play</artifactId>
   <packaging>pom</packaging>
   <version>0.0.1-SNAPSHOT</version>
   <modules>

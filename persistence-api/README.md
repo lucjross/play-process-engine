@@ -1,4 +1,4 @@
-### play-process-engine-persistence-api
+### play-persistence-api
 
 A **datastore-agnostic** persistence API module.
 These interfaces are intended for use as a base for spring-data-&ast; repositories,

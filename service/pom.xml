@@ -3,28 +3,28 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <artifactId>play-process-engine</artifactId>
+    <artifactId>play</artifactId>
     <groupId>io.wellsmith</groupId>
     <version>0.0.1-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>play-process-engine-service</artifactId>
+  <artifactId>play-service</artifactId>
 
   <dependencies>
     <dependency>
       <groupId>io.wellsmith</groupId>
-      <artifactId>play-process-engine-domain-bpmn</artifactId>
+      <artifactId>play-domain-bpmn</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>io.wellsmith</groupId>
-      <artifactId>play-process-engine-serde</artifactId>
+      <artifactId>play-serde</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>io.wellsmith</groupId>
-      <artifactId>play-process-engine-persistence-cassandra</artifactId>
+      <artifactId>play-persistence-cassandra</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
     <dependency>
