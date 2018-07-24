@@ -12,7 +12,7 @@ import java.util.stream.Stream
 
 class BPMN20SerdeTest {
 
-  private val serde = BPMN20Serde(BPMN20Serde.marshaller())
+  private val serde = BPMN20Serde()
 
   companion object {
     @JvmStatic

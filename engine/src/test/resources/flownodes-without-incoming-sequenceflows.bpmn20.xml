@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  typeLanguage="http://www.w3.org/2001/XMLSchema"
+  expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="?">
+
+  <process id="start-to-end">
+    <parallelGateway id="no-incoming-flow-1"/>
+    <subProcess id="no-incoming-flow-2"/>
+    <startEvent id="hi"/>
+    <sequenceFlow sourceRef="hi" targetRef="bye"/>
+    <endEvent id="bye"/>
+  </process>
+
+</definitions>

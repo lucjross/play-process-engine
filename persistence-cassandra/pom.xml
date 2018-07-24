@@ -15,7 +15,18 @@
     <dependency>
       <groupId>org.springframework.data</groupId>
       <artifactId>spring-data-cassandra</artifactId>
-      <version>2.0.8.RELEASE</version>
+      <version>${spring-data.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.datastax.cassandra</groupId>
+          <artifactId>cassandra-driver-core</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>com.datastax.cassandra</groupId>
+      <artifactId>cassandra-driver-core</artifactId>
+      <version>3.5.1</version>
     </dependency>
     <dependency>
       <groupId>io.wellsmith</groupId>

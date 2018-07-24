@@ -19,7 +19,7 @@ class BPMN20XMLService<T: BPMN20XMLEntity>(val bpmn20XMLRepository: BPMN20XMLRep
   }
 
   /**
-   * Placeholder for creating a BPMN2.0 XML bundle
+   * Creates a BPMN2.0 XML bundle
    *
    * @return  new bundle ID
    * @throws  org.springframework.oxm.XmlMappingException
@@ -45,14 +45,16 @@ class BPMN20XMLService<T: BPMN20XMLEntity>(val bpmn20XMLRepository: BPMN20XMLRep
   }
 
   /**
-   * Placeholder for retrieving the TDefinitions IDs in a BPMN2.0 XML bundle
+   * Gets the [entity IDs][BPMN20XMLEntity.id] in a BPMN2.0 XML bundle
    */
   fun getDefinitionsIdsInBundle(bundleId: UUID): Collection<UUID> =
       bpmn20XMLRepository.findByBundleId(bundleId)
           .map { it.id }
 
   /**
-   * Placeholder for retrieving [BPMN20XMLEntity.document] XML by entity ID
+   * Gets [Definitions XML][BPMN20XMLEntity.document] by entity ID
+   *
+   * @throws  EntityNotFoundException
    */
   fun getDefinitionsXML(id: UUID): String = bpmn20XMLRepository.findById(id)
       .map { it.document }

@@ -2,29 +2,35 @@ package io.wellsmith.play.service
 
 import io.wellsmith.play.persistence.cassandra.PlayCassandraRepositoryConfiguration
 import io.wellsmith.play.service.command.BPMN20XML
-import org.cassandraunit.spring.EmbeddedCassandra
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.ConfigFileApplicationContextInitializer
-import org.springframework.test.context.TestExecutionListeners
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig
 
 @SpringJUnitConfig(
     classes = [
       PlayServiceConfiguration::class,
       PlayCassandraRepositoryConfiguration::class],
-    initializers = [ConfigFileApplicationContextInitializer::class])
-@TestExecutionListeners(
-    listeners = [FixedCassandraUnitTestExecutionListener::class],
-    mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS)
-@EmbeddedCassandra
+    initializers = [
+      ConfigFileApplicationContextInitializer::class,
+      BPMN20XMLServiceWithCassandraIT.MappedPortPropertyInitializer::class])
 class BPMN20XMLServiceWithCassandraIT {
+
+  companion object {
+
+    @RegisterExtension
+    @JvmField
+    val cdbContainer = CassandraContainerClassExtension("cassandra:3")
+        .apply {
+          container.addExposedPort(9042)
+        }
+  }
 
   @Autowired
   private lateinit var bpmn20XMLService: BPMN20XMLService<*>
 
-  //todo
   @Test
   fun `createBundle should insert new bundle`() {
 
@@ -38,5 +44,12 @@ class BPMN20XMLServiceWithCassandraIT {
     val definitionsIds = bpmn20XMLService.getDefinitionsIdsInBundle(bundleId)
     val retrievedXml = bpmn20XMLService.getDefinitionsXML(definitionsIds.first())
     Assertions.assertEquals(xml, retrievedXml)
+  }
+
+
+
+  class MappedPortPropertyInitializer: AbstractMappedPortPropertyInitializer() {
+    override fun container() = cdbContainer.container
+    override fun exposedPort() = 9042
   }
 }

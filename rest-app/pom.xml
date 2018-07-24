@@ -17,14 +17,17 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-web</artifactId>
+      <version>${spring-boot.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-tomcat</artifactId>
+      <version>${spring-boot.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <version>${spring-boot.version}</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
@@ -45,6 +48,11 @@
     <dependency>
       <groupId>io.wellsmith</groupId>
       <artifactId>play-service</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>io.wellsmith</groupId>
+      <artifactId>play-persistence-cassandra</artifactId>
       <version>0.0.1-SNAPSHOT</version>
     </dependency>
   </dependencies>

@@ -11,7 +11,7 @@ import org.springframework.oxm.jaxb.Jaxb2Marshaller
 class PlayServiceConfiguration {
 
   @Bean
-  fun bpmn20Marshaller() = BPMN20Serde.marshaller()
+  fun bpmn20Marshaller() = BPMN20Serde.defaultMarshaller
 
   @Bean
   fun bpmn20Serde(bpmn20Marshaller: Jaxb2Marshaller) = BPMN20Serde(bpmn20Marshaller)

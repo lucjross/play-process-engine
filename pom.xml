@@ -16,6 +16,7 @@
     <module>service</module>
     <module>persistence-api</module>
     <module>persistence-cassandra</module>
+    <module>engine</module>
   </modules>
 
   <properties>
@@ -27,26 +28,14 @@
     <kotlin.version>1.2.51</kotlin.version>
     <kotlin.compiler.incremental>true</kotlin.compiler.incremental><!-- for performance -->
 
-    <cassandra-unit.version>3.5.0.1</cassandra-unit.version>
+    <commons-lang3.version>3.7</commons-lang3.version>
+    <jackson2.version>2.9.6</jackson2.version>
     <junit-jupiter.version>5.2.0</junit-jupiter.version>
     <spring.version>5.0.7.RELEASE</spring.version>
     <spring-boot.version>2.0.3.RELEASE</spring-boot.version>
     <spring-data.version>2.0.8.RELEASE</spring-data.version>
     <persistence-api.version>1.0.2</persistence-api.version>
   </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <!-- Import dependency management from Spring Boot -->
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring-boot.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <dependencies>
     <dependency>

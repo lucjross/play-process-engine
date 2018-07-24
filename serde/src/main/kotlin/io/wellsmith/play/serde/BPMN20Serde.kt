@@ -16,7 +16,8 @@ import javax.xml.transform.stream.StreamSource
  * "The Definitions class is the outermost containing object for all BPMN elements."
  * (§8.11, Definitions)
  */
-class BPMN20Serde(private val marshaller: Jaxb2Marshaller): Serde<TDefinitions> {
+class BPMN20Serde(private val marshaller: Jaxb2Marshaller = defaultMarshaller):
+    Serde<TDefinitions> {
 
   private val objectFactory = ObjectFactory()
 
@@ -26,23 +27,21 @@ class BPMN20Serde(private val marshaller: Jaxb2Marshaller): Serde<TDefinitions> 
      * Must be initialized before use by defining it as a bean
      * or by calling [Jaxb2Marshaller.afterPropertiesSet].
      */
-    fun marshaller(): Jaxb2Marshaller {
-      val marshaller = Jaxb2Marshaller()
-      marshaller.setPackagesToScan(
+    val defaultMarshaller = Jaxb2Marshaller().apply {
+      setPackagesToScan(
           ObjectFactory::class.java.`package`.name,
           org.omg.spec.dd._20100524.dc.ObjectFactory::class.java.`package`.name,
           org.omg.spec.dd._20100524.di.ObjectFactory::class.java.`package`.name,
           org.omg.spec.bpmn._20100524.di.ObjectFactory::class.java.`package`.name)
-      marshaller.setSchemas(
+      setSchemas(
           ClassPathResource("spec/BPMN/20100501/BPMN20.xsd"),
           ClassPathResource("spec/BPMN/20100501/BPMNDI.xsd"),
           ClassPathResource("spec/BPMN/20100501/DC.xsd"),
           ClassPathResource("spec/BPMN/20100501/DI.xsd"),
           ClassPathResource("spec/BPMN/20100501/Semantic.xsd"))
-      marshaller.setMarshallerProperties(mapOf(
+      setMarshallerProperties(mapOf(
           Marshaller.JAXB_FORMATTED_OUTPUT to true,
           "com.sun.xml.bind.namespacePrefixMapper" to NamespacePrefixMapperImpl()))
-      return marshaller
     }
   }
 
