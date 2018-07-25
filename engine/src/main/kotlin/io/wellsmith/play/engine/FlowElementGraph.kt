@@ -10,16 +10,17 @@ import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import java.util.AbstractSequentialList
 
-class FlowElementGraph(tProcess: TProcess) {
+class FlowElementGraph(internal val process: TProcess) {
 
-  private val nodes =
-      ArrayList<FlowElementNodeList>(tProcess.flowElement.size)
+  private val nodes = ArrayList<FlowElementNodeList>(process.flowElement.size)
+  internal val flowNodesById: Map<String, TFlowNode>
+  internal val sequenceFlowsByTargetRef: Map<TFlowNode, List<TSequenceFlow>>
 
   init {
-    val flowNodes: List<TFlowNode> = tProcess.flowElement
+    val flowNodes: List<TFlowNode> = process.flowElement
         .filter { it.value is TFlowNode }
         .map { it.value as TFlowNode }
-    val sequenceFlows: List<TSequenceFlow> = tProcess.flowElement
+    val sequenceFlows: List<TSequenceFlow> = process.flowElement
         .filter { it.value is TSequenceFlow }
         .map { it.value as TSequenceFlow }
 
@@ -42,6 +43,9 @@ class FlowElementGraph(tProcess: TProcess) {
 
       nodes.add(nodeList)
     }
+
+    flowNodesById = flowNodes.associateBy { it.id }
+    sequenceFlowsByTargetRef = sequenceFlows.groupBy { it.targetRef as TFlowNode }
   }
 
   /**
@@ -51,7 +55,7 @@ class FlowElementGraph(tProcess: TProcess) {
    * SHALL be instantiated when the Process is instantiated."
    */
   @Compliant(toSpec = Spec.BPMN_2_0, section = "10.4.2", level = Level.INCOMPLETE)
-  fun allIdsOfFlowElementsToVisitUponProcessInstantiation(): Collection<String> =
+  fun allIdsOfFlowNodesToVisitUponProcessInstantiation(): Collection<String> =
       nodes.filter { node1 ->
         node1.root is TFlowNode && nodes.find { node2 ->
           node2.root is TSequenceFlow
@@ -63,9 +67,13 @@ class FlowElementGraph(tProcess: TProcess) {
       nodes.find { it.root == flowElement }
           ?: throw NoSuchElementException()
 
-  internal fun nextFlowNodes(flowNode: TFlowNode): Collection<TFlowNode> {
-    TODO()
-  }
+  /**
+   * Returns all the [TFlowNode]s that each follow a [TSequenceFlow] directly
+   * from the given node. Does not consider conditions associated with the Sequence Flows.
+   */
+  internal fun nextFlowNodes(flowNode: TFlowNode): Collection<TFlowNode> =
+      nodes.filter { it.root is TSequenceFlow && it.root.sourceRef == flowNode }
+          .map { (it.root as TSequenceFlow).targetRef as TFlowNode }
 
 
   internal class FlowElementNodeList(val root: TFlowElement,

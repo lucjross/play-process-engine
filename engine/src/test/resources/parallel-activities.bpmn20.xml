@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions
+  xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:omgdc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:omgdi="http://www.omg.org/spec/DD/20100524/DI"
+  typeLanguage="http://www.w3.org/2001/XMLSchema"
+  expressionLanguage="http://www.w3.org/1999/XPath" targetNamespace="?">
+
+  <process id="start-to-end">
+    <startEvent id="hi"/>
+    <sequenceFlow sourceRef="hi" targetRef="gateway-1"/>
+    
+    <inclusiveGateway id="gateway-1"/>
+    <sequenceFlow sourceRef="gateway-1" targetRef="task-1"/>
+    <sequenceFlow sourceRef="gateway-1" targetRef="task-2"/>
+
+    <!--
+      For future reference:
+      "A Task which is not further specified is called Abstract Task (this was referred to as the None Task in BPMN 1.2)"
+      (§10.2.3.1)
+    -->
+    <task id="task-1"/>
+    <task id="task-2"/>
+    
+    <sequenceFlow sourceRef="task-1" targetRef="bye"/>
+    <sequenceFlow sourceRef="task-2" targetRef="bye"/>
+
+    <endEvent id="bye"/>
+  </process>
+
+</definitions>

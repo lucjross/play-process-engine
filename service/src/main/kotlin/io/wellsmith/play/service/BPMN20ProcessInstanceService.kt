@@ -50,7 +50,7 @@ class BPMN20ProcessInstanceService<T: ProcessInstanceEntity>(
     val processInstanceEntity = processInstanceRepository.save(
         entityFactory.processInstanceEntity(processInstanceId) as T)
 
-    val initialVisitIds = flowElementGraph.allIdsOfFlowElementsToVisitUponProcessInstantiation()
+    val initialVisitIds = flowElementGraph.allIdsOfFlowNodesToVisitUponProcessInstantiation()
     // todo
 
     return processInstanceId

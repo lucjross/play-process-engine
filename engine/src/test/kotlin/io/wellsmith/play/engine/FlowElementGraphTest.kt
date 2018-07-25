@@ -1,6 +1,5 @@
 package io.wellsmith.play.engine
 
-import io.wellsmith.play.serde.BPMN20Serde
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.omg.spec.bpmn._20100524.model.TEndEvent
@@ -10,15 +9,10 @@ import org.omg.spec.bpmn._20100524.model.TStartEvent
 
 class FlowElementGraphTest {
 
-  private val bpmn20Serde = BPMN20Serde()
-
   @Test
   fun `start-to-end graph constructed correctly`() {
 
-    val filename = "start-to-end.bpmn20.xml"
-    val xmlInputStream =
-        Thread.currentThread().contextClassLoader.getResourceAsStream(filename)
-    val definitions = bpmn20Serde.deserialize(xmlInputStream)
+    val definitions = definitionsFromResource("start-to-end.bpmn20.xml")
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
@@ -42,15 +36,12 @@ class FlowElementGraphTest {
   @Test
   fun `test allIdsOfFlowElementsToVisitUponProcessInstantiation`() {
 
-    val filename = "flownodes-without-incoming-sequenceflows.bpmn20.xml"
-    val xmlInputStream =
-        Thread.currentThread().contextClassLoader.getResourceAsStream(filename)
-    val definitions = bpmn20Serde.deserialize(xmlInputStream)
+    val definitions = definitionsFromResource("flownodes-without-incoming-sequenceflows.bpmn20.xml")
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
 
-    val initialVisitIds = graph.allIdsOfFlowElementsToVisitUponProcessInstantiation()
+    val initialVisitIds = graph.allIdsOfFlowNodesToVisitUponProcessInstantiation()
     Assertions.assertEquals(
         listOf("hi", "no-incoming-flow-1", "no-incoming-flow-2"),
         initialVisitIds.sorted())
