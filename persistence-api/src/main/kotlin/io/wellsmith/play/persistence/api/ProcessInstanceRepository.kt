@@ -6,5 +6,4 @@ import org.springframework.data.repository.NoRepositoryBean
 import java.util.UUID
 
 @NoRepositoryBean
-interface ProcessInstanceRepository<T: ProcessInstanceEntity>: CrudRepository<T, UUID> {
-}
+interface ProcessInstanceRepository<T: ProcessInstanceEntity>: CrudRepository<T, UUID>

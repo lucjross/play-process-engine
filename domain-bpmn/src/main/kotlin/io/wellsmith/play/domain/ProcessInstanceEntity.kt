@@ -2,7 +2,8 @@ package io.wellsmith.play.domain
 
 import java.util.UUID
 
-interface ProcessInstanceEntity {
+interface ProcessInstanceEntity: Entity {
 
-  val id: UUID
+  val bpmn20XMLEntityId: UUID
+  val processId: String
 }

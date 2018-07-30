@@ -14,7 +14,7 @@ class ProcessInstanceTest {
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
 
     // cannot visit a node ahead of nodes with no tokens
     Assertions.assertThrows(IllegalArgumentException::class.java) {
@@ -69,16 +69,36 @@ class ProcessInstanceTest {
   }
 
   @Test
-  fun `test isCompleted with start-to-end`() {
+  fun `isCompleted should work with start-to-end`() {
 
     val definitions = definitionsFromResource("start-to-end.bpmn20.xml")
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisit("hi", now())
+    Assertions.assertFalse(processInstance.isCompleted())
+
+    processInstance.addVisit("bye", now())
+    Assertions.assertTrue(processInstance.isCompleted())
+  }
+
+  @Test
+  fun `isCompleted should work with single-task`() {
+
+    val definitions = definitionsFromResource("single-task.bpmn20.xml")
+    val process = definitions.rootElement
+        .find { it.value is TProcess }!!.value as TProcess
+    val graph = FlowElementGraph(process)
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+    Assertions.assertFalse(processInstance.isCompleted())
+
+    processInstance.addVisit("hi", now())
+    Assertions.assertFalse(processInstance.isCompleted())
+
+    processInstance.addVisit("manual-task-1", now())
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisit("bye", now())

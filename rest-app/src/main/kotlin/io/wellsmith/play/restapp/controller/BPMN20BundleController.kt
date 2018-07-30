@@ -3,6 +3,7 @@ package io.wellsmith.play.restapp.controller
 import io.wellsmith.play.restapp.exception.BPMN20ValidationException
 import io.wellsmith.play.service.BPMN20XMLService
 import io.wellsmith.play.service.command.BPMN20XML
+import io.wellsmith.play.service.response.ProcessIdToBPMN20XMLEntityId
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
@@ -63,9 +64,10 @@ class BPMN20BundleController(val bpmn20XMLService: BPMN20XMLService<*>) {
   }
 
   @GetMapping(path = ["/{bundleId}"])
-  fun getDefinitionsIdsInBundle(@PathVariable bundleId: UUID): HttpEntity<Collection<UUID>> {
+  fun getProcessIdsInBundle(@PathVariable bundleId: UUID):
+      HttpEntity<Collection<ProcessIdToBPMN20XMLEntityId>> {
 
-    val ids = bpmn20XMLService.getDefinitionsIdsInBundle(bundleId)
+    val ids = bpmn20XMLService.getProcessIdsByBPMN20XMLEntityId(bundleId)
     return ResponseEntity(ids, HttpStatus.OK)
   }
 

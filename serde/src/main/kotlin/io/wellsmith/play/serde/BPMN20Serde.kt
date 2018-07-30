@@ -16,7 +16,7 @@ import javax.xml.transform.stream.StreamSource
  * "The Definitions class is the outermost containing object for all BPMN elements."
  * (§8.11, Definitions)
  */
-class BPMN20Serde(private val marshaller: Jaxb2Marshaller = defaultMarshaller):
+open class BPMN20Serde(private val marshaller: Jaxb2Marshaller = defaultMarshaller):
     Serde<TDefinitions> {
 
   private val objectFactory = ObjectFactory()

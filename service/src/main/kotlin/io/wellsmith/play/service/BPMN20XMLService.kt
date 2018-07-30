@@ -5,6 +5,8 @@ import io.wellsmith.play.persistence.api.BPMN20XMLRepository
 import io.wellsmith.play.persistence.api.EntityFactory
 import io.wellsmith.play.serde.BPMN20Serde
 import io.wellsmith.play.service.command.BPMN20XML
+import io.wellsmith.play.service.response.ProcessIdToBPMN20XMLEntityId
+import org.omg.spec.bpmn._20100524.model.TProcess
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -50,6 +52,15 @@ class BPMN20XMLService<T: BPMN20XMLEntity>(val bpmn20XMLRepository: BPMN20XMLRep
   fun getDefinitionsIdsInBundle(bundleId: UUID): Collection<UUID> =
       bpmn20XMLRepository.findByBundleId(bundleId)
           .map { it.id }
+
+  fun getProcessIdsByBPMN20XMLEntityId(bundleId: UUID): Collection<ProcessIdToBPMN20XMLEntityId> =
+      bpmn20XMLRepository.findByBundleId(bundleId)
+          .flatMap { bpmn20XmlEntity ->
+            bpmn20Serde.deserialize(bpmn20XmlEntity.document.byteInputStream(Charsets.UTF_8))
+                .rootElement
+                .filter { it.value is TProcess }
+                .map { ProcessIdToBPMN20XMLEntityId(it.value.id, bpmn20XmlEntity.id) }
+          }
 
   /**
    * Gets [Definitions XML][BPMN20XMLEntity.document] by entity ID

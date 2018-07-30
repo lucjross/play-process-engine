@@ -20,7 +20,7 @@ class ProcessInstanceServiceWithCassandraIT {
   private lateinit var bpmn20XMLService: BPMN20XMLService<*>
 
   @Autowired
-  private lateinit var processInstanceService: BPMN20ProcessInstanceService<*>
+  private lateinit var processInstanceService: ProcessInstanceService
 
   @Test
   fun `test`() {

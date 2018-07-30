@@ -1,5 +1,6 @@
 package io.wellsmith.play.engine
 
+import io.wellsmith.play.domain.ElementVisitEntity
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
@@ -14,18 +15,26 @@ import java.util.TreeSet
 import java.util.UUID
 import java.util.concurrent.ConcurrentMap
 
-class ProcessInstance(private val graph: FlowElementGraph,
+class ProcessInstance(internal val graph: FlowElementGraph,
                       val processId: String,
                       val bpmn20XMLEntityId: UUID,
+                      val entityId: UUID,
                       val parentProcess: TProcess? = null,
                       val fromSequenceFlow: TSequenceFlow? = null,
                       val calledBy: TCallActivity? = null,
-                      flowElementVisits: Set<FlowNodeVisit>? = null) {
+                      elementVisits: List<ElementVisitEntity>? = null) {
 
   private val visits: ConcurrentMap<TFlowNode, TreeSet<FlowNodeVisit>> =
       newVisitsMap().apply {
-        if (flowElementVisits != null) {
-          putAll(flowElementVisits
+        if (elementVisits != null) {
+          putAll(elementVisits
+              .filter { it.baseElementId != null }
+              .filter { graph.flowNodesById[it.baseElementId] is TFlowNode }
+              .map { FlowNodeVisit(
+                  graph.flowNodesById[it.baseElementId]!!,
+                  it.time,
+                  if (it.fromFlowNodeId != null) graph.flowNodesById[it.fromFlowNodeId!!] else null)
+              }
               .groupingBy { it.flowNode }
               .aggregateTo(newVisitsMap()) { key, acc, el, first ->
                 if (first) newVisitSet().apply { add(el) }

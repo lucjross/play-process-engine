@@ -63,7 +63,7 @@ class FlowElementGraph(internal val process: TProcess) {
         } == null
       }.map { it.root.id }
 
-  internal fun nextFlowElements(flowElement: TFlowElement) =
+  internal fun nextFlowElements(flowElement: TFlowElement): FlowElementNodeList =
       nodes.find { it.root == flowElement }
           ?: throw NoSuchElementException()
 
@@ -72,8 +72,11 @@ class FlowElementGraph(internal val process: TProcess) {
    * from the given node. Does not consider conditions associated with the Sequence Flows.
    */
   internal fun nextFlowNodes(flowNode: TFlowNode): Collection<TFlowNode> =
+      nextSequenceFlows(flowNode).map { it.targetRef as TFlowNode }
+
+  internal fun nextSequenceFlows(flowNode: TFlowNode): Collection<TSequenceFlow> =
       nodes.filter { it.root is TSequenceFlow && it.root.sourceRef == flowNode }
-          .map { (it.root as TSequenceFlow).targetRef as TFlowNode }
+          .map { it.root as TSequenceFlow }
 
 
   internal class FlowElementNodeList(val root: TFlowElement,
