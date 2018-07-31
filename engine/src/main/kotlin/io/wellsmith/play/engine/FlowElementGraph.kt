@@ -1,6 +1,8 @@
 package io.wellsmith.play.engine
 
 import com.google.common.collect.UnmodifiableListIterator
+import io.wellsmith.play.domain.SequenceFlowVisitEntity
+import io.wellsmith.play.domain.elementKeyOf
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
@@ -13,8 +15,9 @@ import java.util.AbstractSequentialList
 class FlowElementGraph(internal val process: TProcess) {
 
   private val nodes = ArrayList<FlowElementNodeList>(process.flowElement.size)
-  internal val flowNodesById: Map<String, TFlowNode>
+  internal val flowElementsByKey: Map<String, TFlowElement>
   internal val sequenceFlowsByTargetRef: Map<TFlowNode, List<TSequenceFlow>>
+  internal val sequenceFlowsBySourceRef: Map<TFlowNode, List<TSequenceFlow>>
 
   init {
     val flowNodes: List<TFlowNode> = process.flowElement
@@ -44,8 +47,12 @@ class FlowElementGraph(internal val process: TProcess) {
       nodes.add(nodeList)
     }
 
-    flowNodesById = flowNodes.associateBy { it.id }
+    flowElementsByKey = process.flowElement
+        .filter { it.value is TFlowNode || it.value is TSequenceFlow }
+        .map { it.value as TFlowElement }
+        .associateBy { it.elementKey() }
     sequenceFlowsByTargetRef = sequenceFlows.groupBy { it.targetRef as TFlowNode }
+    sequenceFlowsBySourceRef = sequenceFlows.groupBy { it.sourceRef as TFlowNode }
   }
 
   /**
@@ -75,8 +82,7 @@ class FlowElementGraph(internal val process: TProcess) {
       nextSequenceFlows(flowNode).map { it.targetRef as TFlowNode }
 
   internal fun nextSequenceFlows(flowNode: TFlowNode): Collection<TSequenceFlow> =
-      nodes.filter { it.root is TSequenceFlow && it.root.sourceRef == flowNode }
-          .map { it.root as TSequenceFlow }
+      sequenceFlowsBySourceRef[flowNode].orEmpty()
 
 
   internal class FlowElementNodeList(val root: TFlowElement,
@@ -158,6 +164,12 @@ class FlowElementGraph(internal val process: TProcess) {
     internal class FlowElementNode(val prev: FlowElementNode?,
                                    val flowElement: TFlowElement,
                                    var next: FlowElementNode?)
-
   }
+}
+
+internal fun TFlowElement.elementKey(): String = when {
+  this is TSequenceFlow -> elementKeyOf(
+      (this.sourceRef as TFlowNode).id, (this.targetRef as TFlowNode).id)
+  this is TFlowNode -> this.id
+  else -> TODO()
 }

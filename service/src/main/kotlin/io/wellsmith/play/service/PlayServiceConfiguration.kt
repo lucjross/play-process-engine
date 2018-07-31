@@ -20,7 +20,7 @@ import java.util.concurrent.ForkJoinPool
 class PlayServiceConfiguration {
 
   @Bean
-  fun bpmn20Marshaller() = BPMN20Serde.defaultMarshaller
+  fun bpmn20Marshaller() = BPMN20Serde.defaultMarshaller()
 
   @Bean
   fun bpmn20Serde(bpmn20Marshaller: Jaxb2Marshaller) = BPMN20Serde(bpmn20Marshaller)

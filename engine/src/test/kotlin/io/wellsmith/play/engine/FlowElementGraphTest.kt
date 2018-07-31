@@ -30,7 +30,7 @@ class FlowElementGraphTest {
     val endEvent = graph.nextFlowElements(sf).first() as TEndEvent
     Assertions.assertEquals(sf.targetRef, endEvent)
 
-    Assertions.assertEquals(0, graph.nextFlowElements(endEvent).size)
+    Assertions.assertEquals(0, graph.nextFlowNodes(endEvent).size)
   }
 
   @Test

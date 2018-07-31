@@ -8,7 +8,8 @@ interface ElementVisitEntity: Entity {
   val bpmn20XMLEntityId: UUID
   val processId: String
   val processInstanceEntityId: UUID
-  val baseElementId: String?
-  val fromFlowNodeId: String?
+  val fromFlowElementId: String?
   val time: Instant
+
+  fun elementKey(): String
 }

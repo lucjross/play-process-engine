@@ -35,7 +35,7 @@ class ManualTaskVisitor(processInstance: ProcessInstance,
 
     val futures = mutableListOf<Future<*>>()
     processInstance.graph.nextSequenceFlows(el).forEach {
-      visitors.visitorOfSequenceFlow(processInstance, it).visit()
+      visitors.visitorOf(processInstance, it).visit()
           .let { futures.addAll(it) }
     }
 

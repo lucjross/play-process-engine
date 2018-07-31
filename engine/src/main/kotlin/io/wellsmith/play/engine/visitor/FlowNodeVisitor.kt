@@ -1,10 +1,11 @@
 package io.wellsmith.play.engine.visitor
 
 import io.wellsmith.play.domain.ElementVisitEntity
-import io.wellsmith.play.engine.FlowNodeVisit
+import io.wellsmith.play.engine.FlowElementVisit
 import io.wellsmith.play.engine.PlayEngineConfiguration
 import io.wellsmith.play.engine.ProcessInstance
 import org.omg.spec.bpmn._20100524.model.TFlowNode
+import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.Callable
@@ -13,7 +14,7 @@ import java.util.concurrent.Future
 abstract class FlowNodeVisitor<T: TFlowNode>(processInstance: ProcessInstance,
                                              playEngineConfiguration: PlayEngineConfiguration,
                                              el: T):
-    FlowElementVisitor<T>(processInstance, el) {
+    FlowElementVisitor<T>(processInstance, playEngineConfiguration, el) {
 
   private val elementVisitRepository = playEngineConfiguration.repositoryOf(ElementVisitEntity::class)
   private val entityFactory = playEngineConfiguration.entityFactory
@@ -23,6 +24,8 @@ abstract class FlowNodeVisitor<T: TFlowNode>(processInstance: ProcessInstance,
   override fun visit(): List<Future<*>> {
 
     val futures = mutableListOf<Future<*>>()
+    super.visit().let { futures.addAll(it) }
+
     executorService.submit(Callable<ElementVisitEntity> {
       elementVisitRepository.save(
           entityFactory.elementVisitEntity(
@@ -32,10 +35,10 @@ abstract class FlowNodeVisitor<T: TFlowNode>(processInstance: ProcessInstance,
               processInstance.entityId,
               el.id,
               null,
+              null,
+              null,
               Instant.now(clock)))
     }).let { futures.add(it) }
-
-    processInstance.addVisit(FlowNodeVisit(el, Instant.now(clock)))
 
     return futures
   }

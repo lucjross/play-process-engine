@@ -17,11 +17,6 @@
     <sequenceFlow sourceRef="gateway-1" targetRef="task-1"/>
     <sequenceFlow sourceRef="gateway-1" targetRef="task-2"/>
 
-    <!--
-      For future reference:
-      "A Task which is not further specified is called Abstract Task (this was referred to as the None Task in BPMN 1.2)"
-      (§10.2.3.1)
-    -->
     <task id="task-1"/>
     <task id="task-2"/>
     

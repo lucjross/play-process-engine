@@ -1,5 +1,7 @@
 package io.wellsmith.play.engine
 
+import io.wellsmith.play.domain.SequenceFlowVisitEntity
+import io.wellsmith.play.domain.elementKeyOf
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 import org.omg.spec.bpmn._20100524.model.TProcess
@@ -18,17 +20,17 @@ class ProcessInstanceTest {
 
     // cannot visit a node ahead of nodes with no tokens
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowNodeVisit(
-          graph.flowNodesById["gateway-1"]!!, now(), graph.flowNodesById["hi"]!!))
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey["gateway-1"]!!, now(), graph.flowElementsByKey["hi"]!!))
     }
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowNodeVisit(
-          graph.flowNodesById["gateway-1"]!!, now()))
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey["gateway-1"]!!, now()))
     }
 
     graph.allIdsOfFlowNodesToVisitUponProcessInstantiation().forEach {
-      processInstance.addVisit(FlowNodeVisit(
-          graph.flowNodesById[it]!!, now()))
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey[it]!!, now()))
     }
 
     Assertions.assertTrue(processInstance.isTokenAt("hi"))
@@ -36,36 +38,61 @@ class ProcessInstanceTest {
 
     // token already at "hi", so it should not be visitable
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowNodeVisit(
-          graph.flowNodesById["hi"]!!, now()))
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey["hi"]!!, now()))
     }
 
-    processInstance.addVisit(FlowNodeVisit(
-        graph.flowNodesById["gateway-1"]!!, now(), graph.flowNodesById["hi"]))
+    // sequence flows must be visited as well
+    Assertions.assertThrows(IllegalArgumentException::class.java) {
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey["gateway-1"]!!, now(), graph.flowElementsByKey["hi"]))
+    }
 
-    Assertions.assertFalse(processInstance.isTokenAt("hi"))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey[elementKeyOf("hi", "gateway-1")]!!, now()))
+    Assertions.assertTrue(processInstance.isTokenAt(
+        elementKeyOf("hi", "gateway-1")))
+
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey["gateway-1"]!!, now(),
+        graph.flowElementsByKey[elementKeyOf("hi", "gateway-1")]))
+    Assertions.assertFalse(processInstance.isTokenAt(
+        elementKeyOf("hi", "gateway-1")))
     Assertions.assertTrue(processInstance.isTokenAt("gateway-1"))
 
-    processInstance.addVisit(FlowNodeVisit(
-        graph.flowNodesById["task-1"]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey[elementKeyOf("gateway-1", "task-1")]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey["task-1"]!!, now()))
 
     // edge-case behavior per rule 2(c)
     Assertions.assertTrue(processInstance.isTokenAt("gateway-1"))
 
-    processInstance.addVisit(FlowNodeVisit(
-        graph.flowNodesById["task-2"]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey[elementKeyOf("gateway-1", "task-2")]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey["task-2"]!!, now()))
 
     Assertions.assertTrue(processInstance.isTokenAt("task-1"))
     Assertions.assertTrue(processInstance.isTokenAt("task-2"))
     Assertions.assertFalse(processInstance.isTokenAt("gateway-1"))
 
-    processInstance.addVisit(FlowNodeVisit(
-        graph.flowNodesById["bye"]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey[elementKeyOf("task-1", "bye")]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey["bye"]!!, now()))
 
     Assertions.assertFalse(processInstance.isTokenAt("task-1"))
-    Assertions.assertFalse(processInstance.isTokenAt("task-2"))
+    Assertions.assertTrue(processInstance.isTokenAt("task-2"))
     // end event does not hold a token
     Assertions.assertFalse(processInstance.isTokenAt("bye"))
+
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey[elementKeyOf("task-2", "bye")]!!, now()))
+    processInstance.addVisit(FlowElementVisit(
+        graph.flowElementsByKey["bye"]!!, now()))
+
+    Assertions.assertFalse(processInstance.isTokenAt("task-2"))
   }
 
   @Test
@@ -79,6 +106,9 @@ class ProcessInstanceTest {
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisit("hi", now())
+    Assertions.assertFalse(processInstance.isCompleted())
+
+    processInstance.addVisit(elementKeyOf("hi", "bye"), now())
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisit("bye", now())
@@ -98,7 +128,13 @@ class ProcessInstanceTest {
     processInstance.addVisit("hi", now())
     Assertions.assertFalse(processInstance.isCompleted())
 
+    processInstance.addVisit(elementKeyOf("hi", "manual-task-1"), now())
+    Assertions.assertFalse(processInstance.isCompleted())
+
     processInstance.addVisit("manual-task-1", now())
+    Assertions.assertFalse(processInstance.isCompleted())
+
+    processInstance.addVisit(elementKeyOf("manual-task-1", "bye"), now())
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisit("bye", now())

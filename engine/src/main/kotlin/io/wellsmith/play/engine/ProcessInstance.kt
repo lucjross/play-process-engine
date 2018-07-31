@@ -6,6 +6,7 @@ import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
 import org.omg.spec.bpmn._20100524.model.TCallActivity
 import org.omg.spec.bpmn._20100524.model.TEndEvent
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TFlowNode
 import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
@@ -24,71 +25,84 @@ class ProcessInstance(internal val graph: FlowElementGraph,
                       val calledBy: TCallActivity? = null,
                       elementVisits: List<ElementVisitEntity>? = null) {
 
-  private val visits: ConcurrentMap<TFlowNode, TreeSet<FlowNodeVisit>> =
+  private val visits: ConcurrentMap<TFlowElement, TreeSet<FlowElementVisit>> =
       newVisitsMap().apply {
         if (elementVisits != null) {
           putAll(elementVisits
-              .filter { it.baseElementId != null }
-              .filter { graph.flowNodesById[it.baseElementId] is TFlowNode }
-              .map { FlowNodeVisit(
-                  graph.flowNodesById[it.baseElementId]!!,
+              .map { FlowElementVisit(
+                  graph.flowElementsByKey[it.elementKey()]!!,
                   it.time,
-                  if (it.fromFlowNodeId != null) graph.flowNodesById[it.fromFlowNodeId!!] else null)
+                  it.fromFlowElementId?.let { graph.flowElementsByKey[it] })
               }
-              .groupingBy { it.flowNode }
+              .groupingBy { it.flowElement }
               .aggregateTo(newVisitsMap()) { key, acc, el, first ->
                 if (first) newVisitSet().apply { add(el) }
                 else acc!!.apply { add(el) }
-              })
+              }
+          )
         }
       }
 
-  fun addVisit(flowNodeId: String, time: Instant, fromFlowNode: TFlowNode? = null) {
-    addVisit(FlowNodeVisit(
-        graph.flowNodesById[flowNodeId]!!, time, fromFlowNode))
+  fun addVisit(flowElementId: String, time: Instant, fromFlowElement: TFlowElement? = null) {
+    addVisit(FlowElementVisit(
+        graph.flowElementsByKey[flowElementId]!!, time, fromFlowElement))
   }
 
-  fun addVisit(flowNodeVisit: FlowNodeVisit) {
+  fun addVisit(flowElementVisit: FlowElementVisit) {
 
     // check that the visit is currently possible
     // (does not check Sequence Flow conditions)
+    if (flowElementVisit.fromFlowElement?.let {
+          graph.nextFlowElements(it).contains(flowElementVisit.flowElement) } == false) {
+      throw IllegalArgumentException(
+          "flowElement with key ${flowElementVisit.flowElement.elementKey()} does not follow" +
+              " flowElement with key ${flowElementVisit.fromFlowElement.elementKey()}")
+    }
+
     val visitedUponInstantiation = graph.allIdsOfFlowNodesToVisitUponProcessInstantiation()
-        .contains(flowNodeVisit.flowNode.id)
-    if (visitedUponInstantiation && isTokenAt(flowNodeVisit.flowNode)) {
+        .contains(flowElementVisit.flowElement.id)
+    if (visitedUponInstantiation && isTokenAt(flowElementVisit.flowElement)) {
       throw IllegalArgumentException(
-          "Flow Object ${flowNodeVisit.flowNode.id} already visited upon Process instantiation")
+          "Flow Object ${flowElementVisit.flowElement.id} already visited upon Process instantiation")
     }
-    else if (flowNodeVisit.fromFlowNode is TFlowNode &&
-        !isTokenAt(flowNodeVisit.fromFlowNode.id)) {
+    else if (flowElementVisit.fromFlowElement is TFlowElement &&
+        !isTokenAt(flowElementVisit.fromFlowElement.elementKey())) {
       throw IllegalArgumentException(
-          "No token currently at fromFlowNode ${flowNodeVisit.fromFlowNode}")
+          "No token currently at fromFlowNode ${flowElementVisit.fromFlowElement}")
     }
-    else if (flowNodeVisit.fromFlowNode == null) {
+    else if (flowElementVisit.fromFlowElement == null) {
       if (!visitedUponInstantiation) {
-        if (graph.sequenceFlowsByTargetRef[flowNodeVisit.flowNode]
-                ?.any { isTokenAt(it.sourceRef as TFlowNode) } == false) {
+        val followsElementWithToken = when (flowElementVisit.flowElement) {
+          is TSequenceFlow ->
+              graph.flowElementsByKey[
+                  (flowElementVisit.flowElement.sourceRef as TFlowNode).elementKey()
+              ]!!.let { isTokenAt(it) }
+          is TFlowNode ->
+              graph.sequenceFlowsByTargetRef[flowElementVisit.flowElement]!!
+                  .any { isTokenAt(it) }
+          else -> TODO()
+        }
+        if (!followsElementWithToken) {
           throw IllegalArgumentException("""
-            Flow Object ${flowNodeVisit.flowNode.id}
-            does not follow any Flow Object currently holding a token,
-            and has incoming sequence flows
-            (is not eligible for activation upon process instantiation).
-            """.trimIndent())
+            Flow Element ${flowElementVisit.flowElement.id}
+            does not follow any Flow Element currently holding a token
+            """.trimIndent().replace('\n', ' '))
         }
 
       }
     }
 
-    visits.computeIfAbsent(flowNodeVisit.flowNode) { newVisitSet() }
-        .add(flowNodeVisit)
+    visits.computeIfAbsent(flowElementVisit.flowElement) { newVisitSet() }
+        .add(flowElementVisit)
   }
 
-  fun isTokenAt(flowNodeId: String): Boolean {
-    val flowNode = graph.flowNodesById[flowNodeId]
+  fun isTokenAt(flowElementKey: String): Boolean {
+    val flowElement = graph.flowElementsByKey[flowElementKey]
         ?: throw IllegalArgumentException(
-            "Given flowNodeId \"$flowNodeId\" does not refer to a Flow Object" +
+            "Given flowElementKey \"$flowElementKey\" does not refer to a Flow Element" +
                 " on Process with id \"$processId\"")
 
-    return isTokenAt(flowNode)
+    return isTokenAt(flowElement)
   }
 
   /**
@@ -120,27 +134,27 @@ class ProcessInstance(internal val graph: FlowElementGraph,
    *
    * @return  whether the given [TFlowNode] currently has a "token".
    */
-  fun isTokenAt(flowNode: TFlowNode): Boolean {
+  fun isTokenAt(flowElement: TFlowElement): Boolean {
 
-    val flowNodeVisits = visits[flowNode]
-    if (flowNodeVisits == null || flowNodeVisits.size == 0)
+    val flowElementVisits = visits[flowElement]
+    if (flowElementVisits == null || flowElementVisits.size == 0)
       return false
 
-    val followingNodesVisits = graph.nextFlowNodes(flowNode)
+    val followingElementsVisits = graph.nextFlowElements(flowElement)
         .map { visits[it] }
 
-    if (flowNode is TEndEvent ||
-        followingNodesVisits.all {
-          it != null && flowNodeVisits.last().time < it.map { it.time }.max()?: Instant.MIN
+    if (flowElement is TEndEvent ||
+        followingElementsVisits.all {
+          it != null && flowElementVisits.last().time < it.map { it.time }.max()?: Instant.MIN
         }) {
       return false
     }
 
-    if ((graph.sequenceFlowsByTargetRef[flowNode].orEmpty().isEmpty() &&
-            followingNodesVisits.all { it.orEmpty().isEmpty() }
+    if ((graph.sequenceFlowsByTargetRef[flowElement].orEmpty().isEmpty() &&
+            followingElementsVisits.all { it.orEmpty().isEmpty() }
             ) ||
-        followingNodesVisits.any {
-          it == null || flowNodeVisits.last().time > it.map { it.time }.max()?: Instant.MAX
+        followingElementsVisits.any {
+          it == null || flowElementVisits.last().time > it.map { it.time }.max()?: Instant.MAX
         }) {
       return true
     }
@@ -158,9 +172,9 @@ class ProcessInstance(internal val graph: FlowElementGraph,
         // "There is no token remaining within the Process instance."
         // due to the implementation strategy there is an exception to this, which is the case
         // where there are nodes but none have been visited yet.
-        graph.flowNodesById.values.isEmpty() -> true
+        graph.flowElementsByKey.values.isEmpty() -> true
         visits.values.all { it == null || it.isEmpty() } -> false
-        graph.flowNodesById.values.none { isTokenAt(it) } -> true
+        graph.flowElementsByKey.values.none { isTokenAt(it) } -> true
 
         // todo -
         // "No Activity of the Process is still active."
@@ -168,7 +182,7 @@ class ProcessInstance(internal val graph: FlowElementGraph,
         else -> false
     }
 
-  internal fun inferPrecedingNodeVisit(flowNode: TFlowNode, time: Instant): FlowNodeVisit? {
+  internal fun inferPrecedingNodeVisit(flowNode: TFlowNode, time: Instant): FlowElementVisit? {
     val preceding = graph.sequenceFlowsByTargetRef[flowNode]
         ?.map { it.sourceRef as TFlowNode }.orEmpty()
     if (preceding.isEmpty()) return null
@@ -179,20 +193,20 @@ class ProcessInstance(internal val graph: FlowElementGraph,
     for (i in 0 until visitsToPrecedingNodes.size) {
       val visitToPrecedingNode = visitsToPrecedingNodes[i]
       if (time > visitToPrecedingNode.time) {
-        return FlowNodeVisit(visitToPrecedingNode.flowNode, visitToPrecedingNode.time)
+        return FlowElementVisit(visitToPrecedingNode.flowElement, visitToPrecedingNode.time)
       }
     }
 
     // if there are preceding nodes then there should have been a preceding node visit
-    // for the given flowNode and time
+    // for the given flowElement and time
     throw IllegalStateException()
   }
 }
 
 private fun newVisitSet() =
-    TreeSet<FlowNodeVisit> { o1, o2 ->
+    TreeSet<FlowElementVisit> { o1, o2 ->
       o1.time.compareTo(o2.time)
     }
 
 private fun newVisitsMap() =
-    ConcurrentReferenceHashMap<TFlowNode, TreeSet<FlowNodeVisit>>()
+    ConcurrentReferenceHashMap<TFlowElement, TreeSet<FlowElementVisit>>()

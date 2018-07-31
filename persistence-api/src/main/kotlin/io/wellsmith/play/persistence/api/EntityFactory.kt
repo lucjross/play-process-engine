@@ -21,7 +21,9 @@ interface EntityFactory {
                          bpmn20XMLEntityId: UUID,
                          processId: String,
                          processInstanceEntityId: UUID,
-                         baseElementId: String?,
-                         fromFlowNodeId: String?,
+                         flowElementId: String?,
+                         sourceRefId: String?,
+                         targetRefId: String?,
+                         fromFlowElementId: String?,
                          time: Instant): ElementVisitEntity
 }

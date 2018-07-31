@@ -79,6 +79,7 @@ class ProcessInstanceControllerTest {
     // get isCompleted
     val elementVisitEntities = mutableListOf<ElementVisitEntity>()
     elementVisitEntities.addAndStub("hi", instantiatedProcess)
+    elementVisitEntities.addAndStub("hi", "manual-task-1", instantiatedProcess)
     elementVisitEntities.addAndStub("manual-task-1", instantiatedProcess)
     val completed1 = getCompleted(instantiatedProcess)
     Assertions.assertFalse(completed1)
@@ -88,6 +89,7 @@ class ProcessInstanceControllerTest {
         MockMvcRequestBuilders.post("/bpmn20/manualTask/${instantiatedProcess.processInstanceEntityId}/manual-task-1/workIsDone"))
         .andExpect(MockMvcResultMatchers.status().isOk)
 
+    elementVisitEntities.addAndStub("manual-task-1", "bye", instantiatedProcess)
     elementVisitEntities.addAndStub("bye", instantiatedProcess)
     val completed2 = getCompleted(instantiatedProcess)
     Assertions.assertTrue(completed2)
@@ -150,7 +152,18 @@ class ProcessInstanceControllerTest {
   private fun MutableList<ElementVisitEntity>.addAndStub(baseElementId: String, instantiatedProcess: InstantiatedProcess) {
     add(ElementVisitCassandraEntity(UUID.randomUUID(), instantiatedProcess.bpmn20XMLEntityId,
         instantiatedProcess.processId, instantiatedProcess.processInstanceEntityId, baseElementId,
-        null, now().minus(1, ChronoUnit.DAYS)))
+        null, null, ElementVisitCassandraEntity.ElementType.FLOW_NODE, null,
+        now().minus(1, ChronoUnit.DAYS)))
+    whenever(elementVisitRepository.findByProcessInstanceEntityId(instantiatedProcess.processInstanceEntityId)) doReturn
+        this
+  }
+
+  private fun MutableList<ElementVisitEntity>.addAndStub(sourceRefId: String, targetRefId: String,
+                                                         instantiatedProcess: InstantiatedProcess) {
+    add(ElementVisitCassandraEntity(UUID.randomUUID(), instantiatedProcess.bpmn20XMLEntityId,
+        instantiatedProcess.processId, instantiatedProcess.processInstanceEntityId, null,
+        sourceRefId, targetRefId, ElementVisitCassandraEntity.ElementType.SEQUENCE_FLOW, null,
+        now().minus(1, ChronoUnit.DAYS)))
     whenever(elementVisitRepository.findByProcessInstanceEntityId(instantiatedProcess.processInstanceEntityId)) doReturn
         this
   }

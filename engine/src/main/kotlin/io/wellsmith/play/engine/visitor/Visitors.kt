@@ -1,9 +1,10 @@
 package io.wellsmith.play.engine.visitor
 
+import io.wellsmith.play.domain.elementKeyOf
 import io.wellsmith.play.engine.PlayEngineConfiguration
 import io.wellsmith.play.engine.ProcessInstance
 import org.omg.spec.bpmn._20100524.model.TEndEvent
-import org.omg.spec.bpmn._20100524.model.TFlowNode
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TManualTask
 import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
@@ -15,7 +16,7 @@ class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
   fun visitorOf(processInstance: ProcessInstance,
                 flowNodeId: String): BaseElementVisitor<*> {
     return visitorOf(processInstance,
-        processInstance.graph.flowNodesById[flowNodeId]!!)
+        processInstance.graph.flowElementsByKey[flowNodeId]!!)
   }
 
   @Deprecated("for demo")
@@ -23,18 +24,20 @@ class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
   fun visitorOfManualTask(processInstance: ProcessInstance,
                           manualTaskId: String): ManualTaskVisitor {
     return ManualTaskVisitor(processInstance, playEngineConfiguration, this,
-        processInstance.graph.flowNodesById[manualTaskId] as TManualTask)
+        processInstance.graph.flowElementsByKey[manualTaskId] as TManualTask)
   }
 
   @Suppress("UNCHECKED_CAST")
   fun visitorOf(processInstance: ProcessInstance,
-                el: TFlowNode): BaseElementVisitor<*> {
+                el: TFlowElement): BaseElementVisitor<*> {
 
     return when (el::class) {
       TEndEvent::class ->
         EndEventVisitor(processInstance, playEngineConfiguration, el as TEndEvent)
       TManualTask::class ->
         ManualTaskVisitor(processInstance, playEngineConfiguration, this, el as TManualTask)
+      TSequenceFlow::class ->
+        SequenceFlowVisitor(processInstance, playEngineConfiguration, this, el as TSequenceFlow)
       TStartEvent::class ->
         StartEventVisitor(processInstance, playEngineConfiguration, this, el as TStartEvent)
       TTask::class ->
@@ -52,17 +55,10 @@ class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
   fun visitorOfSequenceFlow(processInstance: ProcessInstance,
                             sourceRefId: String,
                             targetRefId: String): BaseElementVisitor<TSequenceFlow> {
-    val sequenceFlow = processInstance.graph.sequenceFlowsByTargetRef.values
-        .flatten()
-        .find {
-          (it.sourceRef as TFlowNode).id == sourceRefId &&
-              (it.targetRef as TFlowNode).id == targetRefId
-        }!!
-    return visitorOfSequenceFlow(processInstance, sequenceFlow)
-  }
-
-  fun visitorOfSequenceFlow(processInstance: ProcessInstance,
-                            sequenceFlow: TSequenceFlow): BaseElementVisitor<TSequenceFlow> {
-    return SequenceFlowVisitor(processInstance, sequenceFlow, this)
+    val sequenceFlow =
+        processInstance.graph.flowElementsByKey[
+            elementKeyOf(sourceRefId, targetRefId)
+        ]!! as TSequenceFlow
+    return visitorOf(processInstance, sequenceFlow) as SequenceFlowVisitor
   }
 }

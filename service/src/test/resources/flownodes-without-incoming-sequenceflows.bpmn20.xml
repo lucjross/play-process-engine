@@ -6,7 +6,7 @@
 
   <process id="test-process-1">
     <startEvent id="no-incoming-flow-1"/>
-    <subProcess id="no-incoming-flow-2"/>
+    <task id="no-incoming-flow-2"/>
     <startEvent id="hi"/>
     <sequenceFlow sourceRef="hi" targetRef="bye"/>
     <endEvent id="bye"/>

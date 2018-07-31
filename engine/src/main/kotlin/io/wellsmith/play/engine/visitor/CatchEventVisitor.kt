@@ -22,7 +22,7 @@ abstract class CatchEventVisitor<T: TCatchEvent>(processInstance: ProcessInstanc
     }
     else {
       processInstance.graph.nextSequenceFlows(el).forEach {
-        visitors.visitorOfSequenceFlow(processInstance, it).visit()
+        visitors.visitorOf(processInstance, it).visit()
             .let { futures.addAll(it) }
       }
     }

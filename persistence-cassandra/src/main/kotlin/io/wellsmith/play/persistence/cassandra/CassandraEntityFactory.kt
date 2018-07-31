@@ -26,9 +26,22 @@ class CassandraEntityFactory: EntityFactory {
                                   bpmn20XMLEntityId: UUID,
                                   processId: String,
                                   processInstanceEntityId: UUID,
-                                  baseElementId: String?,
-                                  fromFlowNodeId: String?,
+                                  flowElementId: String?,
+                                  sourceRefId: String?,
+                                  targetRefId: String?,
+                                  fromFlowElementId: String?,
                                   time: Instant) =
       ElementVisitCassandraEntity(id, bpmn20XMLEntityId, processId, processInstanceEntityId,
-          baseElementId, fromFlowNodeId, time)
+          flowElementId, sourceRefId, targetRefId,
+          when {
+            // a SequenceFlow may have id set, but it isn't used for the key
+            sourceRefId != null && targetRefId != null ->
+              ElementVisitCassandraEntity.ElementType.SEQUENCE_FLOW
+            flowElementId != null ->
+              ElementVisitCassandraEntity.ElementType.FLOW_NODE
+            else -> throw IllegalArgumentException(
+                "If both sourceRefId and targetRefId are not provided," +
+                    " flowElementId must be provided")
+          },
+          fromFlowElementId, time)
 }

@@ -24,7 +24,7 @@ open class TaskVisitor(processInstance: ProcessInstance,
       // an Abstract Task is not associated with any work,
       // so the token can immediately move forward.
       processInstance.graph.nextSequenceFlows(el).forEach {
-        visitors.visitorOfSequenceFlow(processInstance, it).visit()
+        visitors.visitorOf(processInstance, it).visit()
             .let { futures.addAll(it) }
       }
     }

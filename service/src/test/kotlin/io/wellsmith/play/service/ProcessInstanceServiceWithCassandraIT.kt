@@ -2,6 +2,7 @@ package io.wellsmith.play.service
 
 import io.wellsmith.play.persistence.cassandra.PlayCassandraRepositoryConfiguration
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.RegisterExtension
 import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.ConfigFileApplicationContextInitializer
@@ -13,11 +14,26 @@ import java.util.UUID
     classes = [
       PlayServiceConfiguration::class,
       PlayCassandraRepositoryConfiguration::class],
-    initializers = [ConfigFileApplicationContextInitializer::class])
+    initializers = [
+      ConfigFileApplicationContextInitializer::class,
+      ProcessInstanceServiceWithCassandraIT.MappedPortPropertyInitializer::class])
 class ProcessInstanceServiceWithCassandraIT {
+
+  companion object {
+
+    @RegisterExtension
+    @JvmField
+    val cdbContainer = CassandraContainerClassExtension("cassandra:3")
+        .apply {
+          container.addExposedPort(9042)
+        }
+  }
 
   @MockBean
   private lateinit var bpmn20XMLService: BPMN20XMLService<*>
+
+  @MockBean
+  private lateinit var manualTaskService: ManualTaskService
 
   @Autowired
   private lateinit var processInstanceService: ProcessInstanceService
@@ -34,5 +50,12 @@ class ProcessInstanceServiceWithCassandraIT {
 
     val processInstanceId = processInstanceService.instantiateProcess(
         bpmn20XMLEntityId, "test-process-1")
+  }
+
+
+
+  class MappedPortPropertyInitializer: AbstractMappedPortPropertyInitializer() {
+    override fun container() = cdbContainer.container
+    override fun exposedPort() = 9042
   }
 }

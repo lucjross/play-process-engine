@@ -82,9 +82,6 @@
             <plugin>spring</plugin>
           </compilerPlugins>
           <jvmTarget>1.8</jvmTarget>
-          <args>
-            <arg>-Xjvm-default=compatibility</arg>
-          </args>
         </configuration>
         <executions>
           <execution>
