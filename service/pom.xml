@@ -60,10 +60,9 @@
       </exclusions>
     </dependency>
     <dependency>
-      <!-- latest release (1.8.1) doesn't have CassandraContainer yet -->
-      <groupId>com.github.testcontainers.testcontainers-java</groupId>
-      <artifactId>cassandra</artifactId>
-      <version>-1.8.1-gf684292-3</version>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
@@ -73,17 +72,16 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>cassandra</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.junit.vintage</groupId>
       <artifactId>junit-vintage-engine</artifactId>
       <version>${junit-jupiter.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <repositories>
-    <repository>
-      <id>jitpack.io</id>
-      <url>https://jitpack.io</url>
-    </repository>
-  </repositories>
 </project>
