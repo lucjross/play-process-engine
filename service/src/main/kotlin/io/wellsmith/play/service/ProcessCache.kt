@@ -28,8 +28,9 @@ class ProcessCache(private val bpmn20XMLService: BPMN20XMLService<*>,
                 .rootElement
                 .find { it.value.id == processId }?.value
                 as TProcess?
-                ?: throw IllegalStateException(
-                    """Process element with ID $processId not found in Definitions element
-                    on BPMN20XMLEntity with ID $bpmn20xmlEntityId""".trimIndent()))
+                ?: throw IllegalStateException("""
+                  Process element with ID $processId not found in Definitions element
+                  on BPMN20XMLEntity with ID $bpmn20xmlEntityId
+                  """.trimIndent()))
       }
 }

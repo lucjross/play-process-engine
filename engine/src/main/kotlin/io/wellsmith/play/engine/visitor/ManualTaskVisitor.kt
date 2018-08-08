@@ -2,13 +2,15 @@ package io.wellsmith.play.engine.visitor
 
 import io.wellsmith.play.engine.PlayEngineConfiguration
 import io.wellsmith.play.engine.ProcessInstance
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TManualTask
 import org.slf4j.LoggerFactory
+import java.util.UUID
 import java.util.concurrent.Future
 
 class ManualTaskVisitor(processInstance: ProcessInstance,
                         playEngineConfiguration: PlayEngineConfiguration,
-                        private val visitors: Visitors,
+                        visitors: Visitors,
                         el: TManualTask):
     TaskVisitor(processInstance, playEngineConfiguration, visitors, el) {
 
@@ -17,10 +19,10 @@ class ManualTaskVisitor(processInstance: ProcessInstance,
     val logger = LoggerFactory.getLogger(ManualTaskVisitor::class.java)
   }
 
-  override fun visit(): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
 
     val futures = mutableListOf<Future<*>>()
-    super.visit().let { futures.addAll(it) }
+    super.visit(fromFlowElement).let { futures.addAll(it) }
 
     // "A Manual Task is a Task that is not managed by any business process engine."
     // so, the token must stay on this Task until it is manually completed.
@@ -34,10 +36,7 @@ class ManualTaskVisitor(processInstance: ProcessInstance,
     // this will be a major story
 
     val futures = mutableListOf<Future<*>>()
-    processInstance.graph.nextSequenceFlows(el).forEach {
-      visitors.visitorOf(processInstance, it).visit()
-          .let { futures.addAll(it) }
-    }
+    visitNextSequenceFlows(futures)
 
     return futures
   }

@@ -1,9 +1,12 @@
 package io.wellsmith.play.domain
 
+import java.util.UUID
+
 interface SequenceFlowVisitEntity: ElementVisitEntity {
 
   val sourceRefId: String?
   val targetRefId: String?
+  val splitCorrelationId: UUID?
 
   override fun elementKey() = elementKeyOf(sourceRefId!!, targetRefId!!)
 }

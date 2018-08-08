@@ -1,6 +1,5 @@
 package io.wellsmith.play.engine
 
-import io.wellsmith.play.domain.SequenceFlowVisitEntity
 import io.wellsmith.play.domain.elementKeyOf
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -8,6 +7,75 @@ import org.omg.spec.bpmn._20100524.model.TProcess
 import java.util.UUID
 
 class ProcessInstanceTest {
+
+  @Test
+  fun `test tokenCountAt with circular process`() {
+
+    val definitions = definitionsFromResource("circular1.bpmn20.xml")
+    val process = definitions.rootElement
+        .find { it.value is TProcess }!!.value as TProcess
+    val graph = FlowElementGraph(process)
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+
+    graph.allIdsOfFlowNodesToVisitUponProcessInstantiation().forEach {
+      processInstance.addVisit(FlowElementVisit(
+          graph.flowElementsByKey[it]!!, now()))
+    }
+
+    Assertions.assertEquals(1, processInstance.tokenCountAt("hi-1"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt("hi-2"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("hi-1", "task-1")))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("hi-2", "task-1")))
+
+    val correlationId1 = UUID.randomUUID()
+    processInstance.addVisitNow(elementKeyOf("hi-1", "task-1"), "hi-1", correlationId1)
+    processInstance.addVisitNow(elementKeyOf("hi-2", "task-1"), "hi-2", correlationId1)
+    Assertions.assertEquals(0, processInstance.tokenCountAt("hi-1"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt("hi-2"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("hi-1", "task-1")))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("hi-2", "task-1")))
+
+    processInstance.addVisitNow("task-1", elementKeyOf("hi-1", "task-1"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("hi-1", "task-1")))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("hi-2", "task-1")))
+    Assertions.assertEquals(1, processInstance.tokenCountAt("task-1"))
+
+    processInstance.addVisitNow("task-1", elementKeyOf("hi-2", "task-1"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("hi-1", "task-1")))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("hi-2", "task-1")))
+    Assertions.assertEquals(2, processInstance.tokenCountAt("task-1"))
+
+    processInstance.addVisitNow(elementKeyOf("task-1", "gateway-1"), "task-1")
+    Assertions.assertEquals(1, processInstance.tokenCountAt("task-1"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("task-1", "gateway-1")))
+
+    processInstance.addVisitNow("gateway-1", elementKeyOf("task-1", "gateway-1"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt("task-1"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("task-1", "gateway-1")))
+    Assertions.assertEquals(1, processInstance.tokenCountAt("gateway-1"))
+
+    processInstance.addVisitNow(elementKeyOf("gateway-1", "task-1"), "gateway-1")
+    Assertions.assertEquals(0, processInstance.tokenCountAt("gateway-1"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("gateway-1", "task-1")))
+
+    processInstance.addVisitNow("task-1", elementKeyOf("gateway-1", "task-1"))
+    // there was already one token here due to the convergence of two flows from two StartEvents.
+    Assertions.assertEquals(2, processInstance.tokenCountAt("task-1"))
+
+    processInstance.addVisitNow(elementKeyOf("task-1", "gateway-1"), "task-1")
+    Assertions.assertEquals(1, processInstance.tokenCountAt("task-1"))
+    Assertions.assertEquals(1, processInstance.tokenCountAt(elementKeyOf("task-1", "gateway-1")))
+
+    processInstance.addVisitNow(elementKeyOf("task-1", "gateway-1"), "task-1")
+    Assertions.assertEquals(0, processInstance.tokenCountAt("task-1"))
+    Assertions.assertEquals(2, processInstance.tokenCountAt(elementKeyOf("task-1", "gateway-1")))
+
+    for (i in 0..1)
+      processInstance.addVisitNow("gateway-1", elementKeyOf("task-1", "gateway-1"))
+    Assertions.assertEquals(0, processInstance.tokenCountAt(elementKeyOf("task-1", "gateway-1")))
+    Assertions.assertEquals(2, processInstance.tokenCountAt("gateway-1"))
+
+  }
 
   @Test
   fun `test isTokenAt with parallel-activities`() {
@@ -20,17 +88,14 @@ class ProcessInstanceTest {
 
     // cannot visit a node ahead of nodes with no tokens
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowElementVisit(
-          graph.flowElementsByKey["gateway-1"]!!, now(), graph.flowElementsByKey["hi"]!!))
+      processInstance.addVisitNow("gateway-1", "hi")
     }
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowElementVisit(
-          graph.flowElementsByKey["gateway-1"]!!, now()))
+      processInstance.addVisitNow("gateway-1")
     }
 
     graph.allIdsOfFlowNodesToVisitUponProcessInstantiation().forEach {
-      processInstance.addVisit(FlowElementVisit(
-          graph.flowElementsByKey[it]!!, now()))
+      processInstance.addVisitNow(it)
     }
 
     Assertions.assertTrue(processInstance.isTokenAt("hi"))
@@ -38,60 +103,45 @@ class ProcessInstanceTest {
 
     // token already at "hi", so it should not be visitable
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowElementVisit(
-          graph.flowElementsByKey["hi"]!!, now()))
+      processInstance.addVisitNow("hi")
     }
 
     // sequence flows must be visited as well
     Assertions.assertThrows(IllegalArgumentException::class.java) {
-      processInstance.addVisit(FlowElementVisit(
-          graph.flowElementsByKey["gateway-1"]!!, now(), graph.flowElementsByKey["hi"]))
+      processInstance.addVisitNow("gateway-1", "hi")
     }
 
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey[elementKeyOf("hi", "gateway-1")]!!, now()))
+    processInstance.addVisitNow(elementKeyOf("hi", "gateway-1"), "hi")
     Assertions.assertTrue(processInstance.isTokenAt(
         elementKeyOf("hi", "gateway-1")))
 
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey["gateway-1"]!!, now(),
-        graph.flowElementsByKey[elementKeyOf("hi", "gateway-1")]))
+    processInstance.addVisitNow("gateway-1", elementKeyOf("hi", "gateway-1"))
     Assertions.assertFalse(processInstance.isTokenAt(
         elementKeyOf("hi", "gateway-1")))
     Assertions.assertTrue(processInstance.isTokenAt("gateway-1"))
 
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey[elementKeyOf("gateway-1", "task-1")]!!, now()))
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey["task-1"]!!, now()))
+    val splitCorrelationId = UUID.randomUUID()
+    processInstance.addVisitNow(elementKeyOf("gateway-1", "task-1"), "gateway-1", splitCorrelationId)
+    processInstance.addVisitNow(elementKeyOf("gateway-1", "task-2"), "gateway-1", splitCorrelationId)
+    Assertions.assertFalse(processInstance.isTokenAt("gateway-1"))
 
-    // edge-case behavior per rule 2(c)
-    Assertions.assertTrue(processInstance.isTokenAt("gateway-1"))
-
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey[elementKeyOf("gateway-1", "task-2")]!!, now()))
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey["task-2"]!!, now()))
+    processInstance.addVisitNow("task-1", elementKeyOf("gateway-1", "task-1"))
+    processInstance.addVisitNow("task-2", elementKeyOf("gateway-1", "task-2"))
 
     Assertions.assertTrue(processInstance.isTokenAt("task-1"))
     Assertions.assertTrue(processInstance.isTokenAt("task-2"))
     Assertions.assertFalse(processInstance.isTokenAt("gateway-1"))
 
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey[elementKeyOf("task-1", "bye")]!!, now()))
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey["bye"]!!, now()))
+    processInstance.addVisitNow(elementKeyOf("task-1", "bye"), "task-1")
+    processInstance.addVisitNow("bye", elementKeyOf("task-1", "bye"))
 
     Assertions.assertFalse(processInstance.isTokenAt("task-1"))
     Assertions.assertTrue(processInstance.isTokenAt("task-2"))
     // end event does not hold a token
     Assertions.assertFalse(processInstance.isTokenAt("bye"))
 
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey[elementKeyOf("task-2", "bye")]!!, now()))
-    processInstance.addVisit(FlowElementVisit(
-        graph.flowElementsByKey["bye"]!!, now()))
-
+    processInstance.addVisitNow(elementKeyOf("task-2", "bye"), "task-2")
+    processInstance.addVisitNow("bye", elementKeyOf("task-2", "bye"))
     Assertions.assertFalse(processInstance.isTokenAt("task-2"))
   }
 
@@ -105,13 +155,13 @@ class ProcessInstanceTest {
     val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit("hi", now())
+    processInstance.addVisitNow("hi")
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit(elementKeyOf("hi", "bye"), now())
+    processInstance.addVisitNow(elementKeyOf("hi", "bye"), "hi")
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit("bye", now())
+    processInstance.addVisitNow("bye", elementKeyOf("hi", "bye"))
     Assertions.assertTrue(processInstance.isCompleted())
   }
 
@@ -125,19 +175,25 @@ class ProcessInstanceTest {
     val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit("hi", now())
+    processInstance.addVisitNow("hi")
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit(elementKeyOf("hi", "manual-task-1"), now())
+    processInstance.addVisitNow(elementKeyOf("hi", "manual-task-1"), "hi")
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit("manual-task-1", now())
+    processInstance.addVisitNow("manual-task-1", elementKeyOf("hi", "manual-task-1"))
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit(elementKeyOf("manual-task-1", "bye"), now())
+    processInstance.addVisitNow(elementKeyOf("manual-task-1", "bye"), "manual-task-1")
     Assertions.assertFalse(processInstance.isCompleted())
 
-    processInstance.addVisit("bye", now())
+    processInstance.addVisitNow("bye", elementKeyOf("manual-task-1", "bye"))
     Assertions.assertTrue(processInstance.isCompleted())
+  }
+
+  private fun ProcessInstance.addVisitNow(flowElementId: String,
+                                          fromFlowElementId: String? = null,
+                                          splitCorrelationId: UUID? = null) {
+    return addVisit(flowElementId, now(), fromFlowElementId, splitCorrelationId)
   }
 }

@@ -6,17 +6,20 @@ import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
 import org.omg.spec.bpmn._20100524.model.TActivity
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import java.math.BigInteger
+import java.util.UUID
 import java.util.concurrent.Future
 
 @Compliant(toSpec = Spec.BPMN_2_0, section = "10.2", level = Level.INCOMPLETE)
 abstract class ActivityVisitor<T: TActivity>(
     processInstance: ProcessInstance,
     playEngineConfiguration: PlayEngineConfiguration,
+    visitors: Visitors,
     el: T
-): FlowNodeVisitor<T>(processInstance, playEngineConfiguration, el) {
+): FlowNodeVisitor<T>(processInstance, playEngineConfiguration, visitors, el) {
 
-  override fun visit(): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
 
     if (el.isIsForCompensation) {
       TODO()
@@ -32,6 +35,6 @@ abstract class ActivityVisitor<T: TActivity>(
 
     // todo - other attributes
 
-    return super.visit()
+    return super.visit(fromFlowElement)
   }
 }

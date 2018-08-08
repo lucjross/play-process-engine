@@ -29,7 +29,8 @@ class CassandraEntityFactory: EntityFactory {
                                   flowElementId: String?,
                                   sourceRefId: String?,
                                   targetRefId: String?,
-                                  fromFlowElementId: String?,
+                                  fromFlowElementKey: String?,
+                                  splitCorrelationId: UUID?,
                                   time: Instant) =
       ElementVisitCassandraEntity(id, bpmn20XMLEntityId, processId, processInstanceEntityId,
           flowElementId, sourceRefId, targetRefId,
@@ -43,5 +44,5 @@ class CassandraEntityFactory: EntityFactory {
                 "If both sourceRefId and targetRefId are not provided," +
                     " flowElementId must be provided")
           },
-          fromFlowElementId, time)
+          fromFlowElementKey, splitCorrelationId, time)
 }

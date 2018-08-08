@@ -20,9 +20,16 @@ class ElementVisitCassandraEntity(
     override val targetRefId: String?,
     val elementType: ElementType,
     override val fromFlowElementId: String?,
+    override val splitCorrelationId: UUID?,
     @PrimaryKeyColumn(ordinal = 1, type = PrimaryKeyType.CLUSTERED)
     override val time: Instant
 ): FlowNodeVisitEntity, SequenceFlowVisitEntity {
+
+  init {
+    if (elementType != ElementType.SEQUENCE_FLOW && splitCorrelationId != null) {
+      throw IllegalArgumentException("splitCorrelationId not applicable to elementType $elementType")
+    }
+  }
 
     override fun elementKey() = when (elementType) {
       ElementType.FLOW_NODE -> super<FlowNodeVisitEntity>.elementKey()

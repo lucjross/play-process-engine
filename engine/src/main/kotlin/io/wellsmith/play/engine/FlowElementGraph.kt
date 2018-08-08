@@ -1,7 +1,6 @@
 package io.wellsmith.play.engine
 
 import com.google.common.collect.UnmodifiableListIterator
-import io.wellsmith.play.domain.SequenceFlowVisitEntity
 import io.wellsmith.play.domain.elementKeyOf
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
@@ -11,6 +10,7 @@ import org.omg.spec.bpmn._20100524.model.TFlowNode
 import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import java.util.AbstractSequentialList
+import java.util.UUID
 
 class FlowElementGraph(internal val process: TProcess) {
 
@@ -81,8 +81,8 @@ class FlowElementGraph(internal val process: TProcess) {
   internal fun nextFlowNodes(flowNode: TFlowNode): Collection<TFlowNode> =
       nextSequenceFlows(flowNode).map { it.targetRef as TFlowNode }
 
-  internal fun nextSequenceFlows(flowNode: TFlowNode): Collection<TSequenceFlow> =
-      sequenceFlowsBySourceRef[flowNode].orEmpty()
+  internal fun nextSequenceFlows(flowNode: TFlowNode) =
+      SequenceFlowCollection(sequenceFlowsBySourceRef[flowNode])
 
 
   internal class FlowElementNodeList(val root: TFlowElement,
@@ -165,6 +165,12 @@ class FlowElementGraph(internal val process: TProcess) {
                                    val flowElement: TFlowElement,
                                    var next: FlowElementNode?)
   }
+}
+
+internal class SequenceFlowCollection(sequenceFlows: Collection<TSequenceFlow>?):
+    ArrayList<TSequenceFlow>(sequenceFlows.orEmpty()) {
+
+  val splitCorrelationId: UUID? = if (size > 1) UUID.randomUUID() else null
 }
 
 internal fun TFlowElement.elementKey(): String = when {

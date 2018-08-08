@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.nhaarman.mockitokotlin2.doReturn
 import com.nhaarman.mockitokotlin2.whenever
 import io.wellsmith.play.domain.ElementVisitEntity
+import io.wellsmith.play.domain.elementKeyOf
 import io.wellsmith.play.engine.now
 import io.wellsmith.play.persistence.api.BPMN20XMLRepository
 import io.wellsmith.play.persistence.api.ElementVisitRepository
@@ -78,9 +79,9 @@ class ProcessInstanceControllerTest {
 
     // get isCompleted
     val elementVisitEntities = mutableListOf<ElementVisitEntity>()
-    elementVisitEntities.addAndStub("hi", instantiatedProcess)
-    elementVisitEntities.addAndStub("hi", "manual-task-1", instantiatedProcess)
-    elementVisitEntities.addAndStub("manual-task-1", instantiatedProcess)
+    elementVisitEntities.addAndStub("hi", instantiatedProcess, null)
+    elementVisitEntities.addAndStub("hi", "manual-task-1", instantiatedProcess, "hi")
+    elementVisitEntities.addAndStub("manual-task-1", instantiatedProcess, elementKeyOf("hi", "manual-task-1"))
     val completed1 = getCompleted(instantiatedProcess)
     Assertions.assertFalse(completed1)
 
@@ -89,8 +90,8 @@ class ProcessInstanceControllerTest {
         MockMvcRequestBuilders.post("/bpmn20/manualTask/${instantiatedProcess.processInstanceEntityId}/manual-task-1/workIsDone"))
         .andExpect(MockMvcResultMatchers.status().isOk)
 
-    elementVisitEntities.addAndStub("manual-task-1", "bye", instantiatedProcess)
-    elementVisitEntities.addAndStub("bye", instantiatedProcess)
+    elementVisitEntities.addAndStub("manual-task-1", "bye", instantiatedProcess, "manual-task-1")
+    elementVisitEntities.addAndStub("bye", instantiatedProcess, elementKeyOf("manual-task-1", "bye"))
     val completed2 = getCompleted(instantiatedProcess)
     Assertions.assertTrue(completed2)
   }
@@ -149,20 +150,25 @@ class ProcessInstanceControllerTest {
         completedResult1.response.contentAsString, Boolean::class.java)
   }
 
-  private fun MutableList<ElementVisitEntity>.addAndStub(baseElementId: String, instantiatedProcess: InstantiatedProcess) {
+  private fun MutableList<ElementVisitEntity>.addAndStub(baseElementId: String,
+                                                         instantiatedProcess: InstantiatedProcess,
+                                                         fromFlowElementKey: String?) {
     add(ElementVisitCassandraEntity(UUID.randomUUID(), instantiatedProcess.bpmn20XMLEntityId,
         instantiatedProcess.processId, instantiatedProcess.processInstanceEntityId, baseElementId,
-        null, null, ElementVisitCassandraEntity.ElementType.FLOW_NODE, null,
+        null, null, ElementVisitCassandraEntity.ElementType.FLOW_NODE,
+        fromFlowElementKey, null,
         now().minus(1, ChronoUnit.DAYS)))
     whenever(elementVisitRepository.findByProcessInstanceEntityId(instantiatedProcess.processInstanceEntityId)) doReturn
         this
   }
 
   private fun MutableList<ElementVisitEntity>.addAndStub(sourceRefId: String, targetRefId: String,
-                                                         instantiatedProcess: InstantiatedProcess) {
+                                                         instantiatedProcess: InstantiatedProcess,
+                                                         fromFlowElementKey: String?) {
     add(ElementVisitCassandraEntity(UUID.randomUUID(), instantiatedProcess.bpmn20XMLEntityId,
         instantiatedProcess.processId, instantiatedProcess.processInstanceEntityId, null,
-        sourceRefId, targetRefId, ElementVisitCassandraEntity.ElementType.SEQUENCE_FLOW, null,
+        sourceRefId, targetRefId, ElementVisitCassandraEntity.ElementType.SEQUENCE_FLOW,
+        fromFlowElementKey, null,
         now().minus(1, ChronoUnit.DAYS)))
     whenever(elementVisitRepository.findByProcessInstanceEntityId(instantiatedProcess.processInstanceEntityId)) doReturn
         this

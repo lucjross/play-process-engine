@@ -25,7 +25,10 @@ class ProcessInstanceService(
     val processInstanceEntityId = UUID.randomUUID()
     val processInstance = ProcessInstance(flowElementGraph, processId, bpmn20xmlEntityId,
         processInstanceEntityId, null, null, null, null)
-    val futures = visitors.visitorOf(processInstance).visit()
+
+    // todo - Visitors should be internal to the engine.
+    // make a wrapper that doesn't allow arbitrary visit calls
+    val futures = visitors.visitorOf(processInstance).visit(null)
     // todo - deal with futures (expose exceptions)
 
     return InstantiatedProcess(bpmn20xmlEntityId, processId, processInstanceEntityId)

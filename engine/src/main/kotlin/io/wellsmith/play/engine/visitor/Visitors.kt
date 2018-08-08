@@ -10,6 +10,7 @@ import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import org.omg.spec.bpmn._20100524.model.TStartEvent
 import org.omg.spec.bpmn._20100524.model.TTask
+import java.util.UUID
 
 class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
 
@@ -29,15 +30,20 @@ class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
 
   @Suppress("UNCHECKED_CAST")
   fun visitorOf(processInstance: ProcessInstance,
-                el: TFlowElement): BaseElementVisitor<*> {
+                el: TFlowElement,
+                splitCorrelationId: UUID? = null): BaseElementVisitor<*> {
+
+    if (splitCorrelationId != null && el !is TSequenceFlow)
+      throw IllegalArgumentException("splitCorrelationId applicable only to SequenceFlow visitor")
 
     return when (el::class) {
       TEndEvent::class ->
-        EndEventVisitor(processInstance, playEngineConfiguration, el as TEndEvent)
+        EndEventVisitor(processInstance, playEngineConfiguration, this, el as TEndEvent)
       TManualTask::class ->
         ManualTaskVisitor(processInstance, playEngineConfiguration, this, el as TManualTask)
       TSequenceFlow::class ->
-        SequenceFlowVisitor(processInstance, playEngineConfiguration, this, el as TSequenceFlow)
+        SequenceFlowVisitor(processInstance, playEngineConfiguration, this, el as TSequenceFlow,
+            splitCorrelationId)
       TStartEvent::class ->
         StartEventVisitor(processInstance, playEngineConfiguration, this, el as TStartEvent)
       TTask::class ->

@@ -24,6 +24,7 @@ interface EntityFactory {
                          flowElementId: String?,
                          sourceRefId: String?,
                          targetRefId: String?,
-                         fromFlowElementId: String?,
+                         fromFlowElementKey: String?,
+                         splitCorrelationId: UUID?,
                          time: Instant): ElementVisitEntity
 }

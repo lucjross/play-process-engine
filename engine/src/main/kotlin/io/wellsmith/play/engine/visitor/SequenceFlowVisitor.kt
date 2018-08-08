@@ -7,6 +7,7 @@ import io.wellsmith.play.engine.ProcessInstance
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TFlowNode
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import java.time.Instant
@@ -18,7 +19,8 @@ import java.util.concurrent.Future
 internal class SequenceFlowVisitor(processInstance: ProcessInstance,
                                    playEngineConfiguration: PlayEngineConfiguration,
                                    private val visitors: Visitors,
-                                   el: TSequenceFlow):
+                                   el: TSequenceFlow,
+                                   private val splitCorrelationId: UUID?):
     FlowElementVisitor<TSequenceFlow>(processInstance, playEngineConfiguration, el) {
 
   private val executorService = playEngineConfiguration.executorService
@@ -26,11 +28,9 @@ internal class SequenceFlowVisitor(processInstance: ProcessInstance,
   private val entityFactory = playEngineConfiguration.entityFactory
   private val clock = playEngineConfiguration.clock
 
-  override fun visit(): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
 
     val futures = mutableListOf<Future<*>>()
-    super.visit().let { futures.addAll(it) }
-
     executorService.submit(Callable<ElementVisitEntity> {
       elementVisitRepository.save(
           entityFactory.elementVisitEntity(
@@ -42,14 +42,17 @@ internal class SequenceFlowVisitor(processInstance: ProcessInstance,
               (el.sourceRef as TFlowNode).id,
               (el.targetRef as TFlowNode).id,
               null,
+              splitCorrelationId,
               Instant.now(clock)))
     }).let { futures.add(it) }
+
+    processInstance.addVisit(FlowElementVisit(el, Instant.now(clock), fromFlowElement, splitCorrelationId))
 
     if (el.conditionExpression != null) {
       TODO()
     }
 
-    visitors.visitorOf(processInstance, el.targetRef as TFlowNode).visit()
+    visitors.visitorOf(processInstance, el.targetRef as TFlowNode).visit(el)
         .let { futures.addAll(it) }
 
     return futures

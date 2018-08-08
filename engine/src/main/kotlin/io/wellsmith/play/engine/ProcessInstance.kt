@@ -12,8 +12,10 @@ import org.omg.spec.bpmn._20100524.model.TProcess
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
 import org.springframework.util.ConcurrentReferenceHashMap
 import java.time.Instant
+import java.util.LinkedList
 import java.util.TreeSet
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
 
 class ProcessInstance(internal val graph: FlowElementGraph,
@@ -43,9 +45,22 @@ class ProcessInstance(internal val graph: FlowElementGraph,
         }
       }
 
-  fun addVisit(flowElementId: String, time: Instant, fromFlowElement: TFlowElement? = null) {
+  private val visitsBySplitCorrelation: ConcurrentMap<UUID, LinkedList<FlowElementVisit>> =
+      visits.values
+          .flatten()
+          .filter { it.splitCorrelationId != null }
+          .groupingBy { it.splitCorrelationId!! }
+          .aggregateTo(ConcurrentHashMap<UUID, LinkedList<FlowElementVisit>>()) { key, acc, el, first ->
+            if (first) LinkedList<FlowElementVisit>().apply { add(el) }
+            else acc!!.apply { add(el) }
+          }
+
+  fun addVisit(flowElementId: String, time: Instant,
+               fromFlowElementId: String? = null, splitCorrelationId: UUID? = null) {
     addVisit(FlowElementVisit(
-        graph.flowElementsByKey[flowElementId]!!, time, fromFlowElement))
+        graph.flowElementsByKey[flowElementId]!!, time,
+        fromFlowElementId?.let { graph.flowElementsByKey[it]!! },
+        splitCorrelationId))
   }
 
   fun addVisit(flowElementVisit: FlowElementVisit) {
@@ -67,99 +82,170 @@ class ProcessInstance(internal val graph: FlowElementGraph,
     }
     else if (flowElementVisit.fromFlowElement is TFlowElement &&
         !isTokenAt(flowElementVisit.fromFlowElement.elementKey())) {
-      throw IllegalArgumentException(
-          "No token currently at fromFlowNode ${flowElementVisit.fromFlowElement}")
+
+      // if there is no token at the preceding element,
+      // then this has to be a SequenceFlow correlated to another SequenceFlow,
+      // which would entail that the other one has already been traversed as a result
+      // of a token split, and this must not have yet received one of the split tokens.
+      if (flowElementVisit.splitCorrelationId == null ||
+          visitsBySplitCorrelation[flowElementVisit.splitCorrelationId]?.any {
+            it.flowElement.elementKey() == flowElementVisit.flowElement.elementKey()
+          } == true) {
+        throw IllegalArgumentException("""
+          No token currently at fromFlowElement ${flowElementVisit.fromFlowElement.elementKey()},
+          and flowElement ${flowElementVisit.flowElement.elementKey()}
+          is not a Sequence Flow with a split token correlation
+          (splitCorrelationId=${flowElementVisit.splitCorrelationId})
+          """.cleanMultiline())
+      }
     }
-    else if (flowElementVisit.fromFlowElement == null) {
+    else if (flowElementVisit.fromFlowElement == null && flowElementVisit.flowElement.let {
+          it is TSequenceFlow || graph.sequenceFlowsByTargetRef[it] != null }) {
+      throw IllegalArgumentException("""
+        Nodes precede flowElement ${flowElementVisit.flowElement.elementKey()},
+        so fromFlowElement must be provided
+        """.cleanMultiline())
+    }
+    else {
       if (!visitedUponInstantiation) {
         val followsElementWithToken = when (flowElementVisit.flowElement) {
           is TSequenceFlow ->
-              graph.flowElementsByKey[
-                  (flowElementVisit.flowElement.sourceRef as TFlowNode).elementKey()
-              ]!!.let { isTokenAt(it) }
+            graph.flowElementsByKey[
+                (flowElementVisit.flowElement.sourceRef as TFlowNode).elementKey()
+            ]!!.let { isTokenAt(it) }
           is TFlowNode ->
-              graph.sequenceFlowsByTargetRef[flowElementVisit.flowElement]!!
-                  .any { isTokenAt(it) }
+            graph.sequenceFlowsByTargetRef[flowElementVisit.flowElement]!!
+                .any { isTokenAt(it) }
           else -> TODO()
         }
         if (!followsElementWithToken) {
           throw IllegalArgumentException("""
             Flow Element ${flowElementVisit.flowElement.id}
             does not follow any Flow Element currently holding a token
-            """.trimIndent().replace('\n', ' '))
+            """.cleanMultiline())
         }
 
       }
     }
 
+    flowElementVisit.splitCorrelationId?.let {
+      visitsBySplitCorrelation.getOrPut(it) { LinkedList() }.add(flowElementVisit)
+    }
     visits.computeIfAbsent(flowElementVisit.flowElement) { newVisitSet() }
         .add(flowElementVisit)
   }
 
-  fun isTokenAt(flowElementKey: String): Boolean {
-    val flowElement = graph.flowElementsByKey[flowElementKey]
-        ?: throw IllegalArgumentException(
-            "Given flowElementKey \"$flowElementKey\" does not refer to a Flow Element" +
-                " on Process with id \"$processId\"")
-
-    return isTokenAt(flowElement)
+  fun tokenCountAt(flowElementKey: String): Int {
+    return tokenCountAt(flowElementOf(flowElementKey))
   }
 
-  /**
-   * Rules:
-   *
-   * 1. a "token" is NOT at this node if:
-   *   (a) it has not been visited; OR
-   *   (b) all of the nodes directly following this node (by Sequence Flow)
-   *       have at least one node visit time that is later than
-   *       the latest visit time of this node; OR
-   *   (c) this node is an End Event, in which case the token is considered to have
-   *       left this node as soon as it arrived
-   *       (i.e., it has disappeared, in order to eagerly reduce the token count of the instance).
-   *
-   * 2. a "token" IS at this node if:
-   *   (a) it is not targeted by any sequence flows AND no nodes directly following this
-   *       node have been visited; OR
-   *   (b) there is at least one node directly following this node that has not been visited; OR
-   *   (c) this node's latest visit time is later than the latest visit time
-   *       of at least one node directly following this node.
-   *
-   * A note on rule 2(c):
-   * This implementation presupposes that,
-   * when a token "splits" into multiple tokens (e.g., through a Parallel Gateway),
-   * not all nodes are going to be "left" all at the same time, although
-   * logically they are.  Hence, it's arbitrarily decided that, during brief periods where
-   * [visits] is not entirely up-to-date with the latest node visits,
-   * a token is "left behind" at the split point.
-   *
-   * @return  whether the given [TFlowNode] currently has a "token".
-   */
-  fun isTokenAt(flowElement: TFlowElement): Boolean {
+  fun tokenCountAt(flowElement: TFlowElement): Int {
 
-    val flowElementVisits = visits[flowElement]
-    if (flowElementVisits == null || flowElementVisits.size == 0)
-      return false
+    val elementVisits = visits[flowElement]
+        ?: return 0
+    if (elementVisits.isEmpty()) {
+      return 0
+    }
 
     val followingElementsVisits = graph.nextFlowElements(flowElement)
-        .map { visits[it] }
+        .map { visits[it]
+            ?.filter { it.fromFlowElement == flowElement }
+            ?.toCollection(newVisitSet()) }
+    if (followingElementsVisits.isEmpty()) {
+      if (flowElement is TEndEvent)
+        return 0
+      else
+        //todo - if this is an Activity then its lifecycle state will have to be considered
+        //if activity is closed then tokens are disappeared
+        return elementVisits.count()
+    }
+    else {
+      /*
+       * Initially the set of elements following this element is transformed into a TreeSet
+       * with a Comparator that returns 0 for visits with equal splitCorrelationIds.
+       * This allows multiple tokens arising from a "split" of a single token
+       * to be considered as only a single token. This is necessary here because the elements
+       * visited with the split tokens are not necessarily visited at exactly
+       * the same time.
+       *
+       * Then, a loop traverses both the element's visits (set VE)
+       * and the following elements' visits (set VF),
+       * both in reverse,
+       * and for each timestamp encountered in VE that is
+       * later than the timestamp of the last-encountered element from VF,
+       * the count is incremented.
+       * For the converse, the count is decremented.
+       * At the end, the count will be either incremented with the number of untraversed elements from VE,
+       * or decremented with the number of untraversed elements from VF.
+       */
+      var count = 0
+      val allFollowingVisits = followingElementsVisits.filterNotNull()
+          .flatMapTo(newVisitSetMatchingSplits()) { it }
+      val visitsRevIter = elementVisits.descendingIterator()
+      val followingVisitsRevIter = allFollowingVisits.descendingIterator()
+      var visit: FlowElementVisit? = null
+      var followingVisit: FlowElementVisit? = null
+      while (true) {
+        if (!visitsRevIter.hasNext() && visit == null) {
+          if (count > 0) {
+            if (followingVisit != null) count--
+            followingVisitsRevIter.forEachRemaining { count-- }
+          }
 
-    if (flowElement is TEndEvent ||
-        followingElementsVisits.all {
-          it != null && flowElementVisits.last().time < it.map { it.time }.max()?: Instant.MIN
-        }) {
-      return false
+          break
+        }
+        else if (visit == null) {
+          visit = visitsRevIter.next()
+        }
+
+        if (!followingVisitsRevIter.hasNext() && followingVisit == null) {
+          if (visit != null) count++
+          visitsRevIter.forEachRemaining { count++ }
+          break
+        }
+        else if (followingVisit == null) {
+          followingVisit = followingVisitsRevIter.next()
+        }
+
+        visitLoop@
+        while (visit!!.time > followingVisit!!.time) {
+          count++
+          if (!visitsRevIter.hasNext()) {
+            visit = null
+            break@visitLoop
+          }
+          visit = visitsRevIter.next()
+        }
+
+        followingVisitLoop@
+        while (followingVisit!!.time >= visit.time) {
+          count--
+          if (!followingVisitsRevIter.hasNext()) {
+            followingVisit = null
+            break@followingVisitLoop
+          }
+          followingVisit = followingVisitsRevIter.next()
+        }
+      }
+
+      return count
     }
 
-    if ((graph.sequenceFlowsByTargetRef[flowElement].orEmpty().isEmpty() &&
-            followingElementsVisits.all { it.orEmpty().isEmpty() }
-            ) ||
-        followingElementsVisits.any {
-          it == null || flowElementVisits.last().time > it.map { it.time }.max()?: Instant.MAX
-        }) {
-      return true
-    }
+  }
 
-    TODO("unhandled cases?")
+  fun isTokenAt(flowElementKey: String): Boolean {
+    return isTokenAt(flowElementOf(flowElementKey))
+  }
+
+  private fun flowElementOf(flowElementKey: String) =
+      graph.flowElementsByKey[flowElementKey]
+          ?: throw IllegalArgumentException(
+              "Given flowElementKey \"$flowElementKey\" does not refer to a Flow Element" +
+                  " on Process with id \"$processId\"")
+
+  fun isTokenAt(flowElement: TFlowElement): Boolean {
+
+    return tokenCountAt(flowElement) > 0
   }
 
   @Compliant(toSpec = Spec.BPMN_2_0, section = "13.1", level = Level.INCOMPLETE)
@@ -205,7 +291,18 @@ class ProcessInstance(internal val graph: FlowElementGraph,
 
 private fun newVisitSet() =
     TreeSet<FlowElementVisit> { o1, o2 ->
-      o1.time.compareTo(o2.time)
+      val c = o1.time.compareTo(o2.time)
+      if (c != 0) c else o1.flowElement.elementKey().compareTo(o2.flowElement.elementKey())
+    }
+
+private fun newVisitSetMatchingSplits() =
+    TreeSet<FlowElementVisit> { o1, o2 ->
+        if (o1.splitCorrelationId != null && o1.splitCorrelationId == o2.splitCorrelationId)
+          0
+        else {
+          val c = o1.time.compareTo(o2.time)
+          if (c != 0) c else o1.flowElement.elementKey().compareTo(o2.flowElement.elementKey())
+        }
     }
 
 private fun newVisitsMap() =

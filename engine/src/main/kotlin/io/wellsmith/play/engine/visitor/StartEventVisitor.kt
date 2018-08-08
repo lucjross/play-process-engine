@@ -2,7 +2,9 @@ package io.wellsmith.play.engine.visitor
 
 import io.wellsmith.play.engine.PlayEngineConfiguration
 import io.wellsmith.play.engine.ProcessInstance
+import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TStartEvent
+import java.util.UUID
 import java.util.concurrent.Future
 
 internal class StartEventVisitor(processInstance: ProcessInstance,
@@ -11,10 +13,10 @@ internal class StartEventVisitor(processInstance: ProcessInstance,
                                  el: TStartEvent):
     CatchEventVisitor<TStartEvent>(processInstance, playEngineConfiguration, visitors, el) {
 
-  override fun visit(): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
 
     val futures = mutableListOf<Future<*>>()
-    super.visit().let { futures.addAll(it) }
+    super.visit(fromFlowElement).let { futures.addAll(it) }
 
     return futures
   }
