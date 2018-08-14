@@ -2,6 +2,7 @@ package io.wellsmith.play.engine.visitor
 
 import io.wellsmith.play.engine.PlayEngineConfiguration
 import io.wellsmith.play.engine.ProcessInstance
+import io.wellsmith.play.engine.activity.ActivityLifecycle
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
@@ -11,23 +12,23 @@ import java.util.UUID
 import java.util.concurrent.Future
 
 @Compliant(toSpec = Spec.BPMN_2_0, section = "10.2.3", level = Level.INCOMPLETE)
-open class TaskVisitor(processInstance: ProcessInstance,
-                       playEngineConfiguration: PlayEngineConfiguration,
-                       visitors: Visitors,
-                       el: TTask):
-    ActivityVisitor<TTask>(processInstance, playEngineConfiguration, visitors, el) {
+internal open class TaskVisitor(
+    processInstance: ProcessInstance,
+    playEngineConfiguration: PlayEngineConfiguration,
+    visitors: Visitors,
+    el: TTask
+): ActivityVisitor<TTask>(processInstance, playEngineConfiguration, visitors, el) {
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?) {
 
-    val futures = mutableListOf<Future<*>>()
-    super.visit(fromFlowElement).let { futures.addAll(it) }
+    super.visit(fromFlowElement)
+  }
+
+  override fun onActive(lifecycle: ActivityLifecycle) {
 
     if (TTask::class == el::class) {
-      // an Abstract Task is not associated with any work,
-      // so the token can immediately move forward.
-      visitNextSequenceFlows(futures)
+      // an Abstract Task is not associated with any work
+      lifecycle.completeWork()
     }
-
-    return futures
   }
 }

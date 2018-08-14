@@ -7,23 +7,23 @@ import org.omg.spec.bpmn._20100524.model.TThrowEvent
 import java.util.UUID
 import java.util.concurrent.Future
 
-abstract class ThrowEventVisitor<T: TThrowEvent>(processInstance: ProcessInstance,
-                                                 playEngineConfiguration: PlayEngineConfiguration,
-                                                 visitors: Visitors,
-                                                 el: T):
-    EventVisitor<T>(processInstance, playEngineConfiguration, visitors, el) {
+internal abstract class ThrowEventVisitor<T: TThrowEvent>(
+    processInstance: ProcessInstance,
+    playEngineConfiguration: PlayEngineConfiguration,
+    visitors: Visitors,
+    el: T
+): EventVisitor<T>(processInstance, playEngineConfiguration, visitors, el) {
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?) {
 
-    val futures = mutableListOf<Future<*>>()
-
-    super.visit(fromFlowElement).let { futures.addAll(it) }
+    super.visit(fromFlowElement)
 
     if (!isNoneEvent()) {
       TODO()
     }
-
-    return futures
+    else {
+      visitNextSequenceFlows()
+    }
   }
 
   internal fun isNoneEvent() = el.eventDefinition.isEmpty()

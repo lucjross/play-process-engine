@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.nhaarman.mockitokotlin2.any
 import com.nhaarman.mockitokotlin2.doReturn
 import com.nhaarman.mockitokotlin2.whenever
+import io.wellsmith.play.persistence.api.ActivityStateChangeRepository
 import io.wellsmith.play.persistence.api.BPMN20XMLRepository
 import io.wellsmith.play.persistence.api.ElementVisitRepository
 import io.wellsmith.play.persistence.api.EntityFactory
@@ -58,6 +59,7 @@ class BPMN20BundleControllerTest {
   @Autowired
   private lateinit var objectMapper: ObjectMapper
 
+  @MockBean private lateinit var activityStateChangeRepository: ActivityStateChangeRepository<*>
   @MockBean private lateinit var bpmn20XMLRepository: BPMN20XMLRepository<*>
   @MockBean private lateinit var processInstanceRepository: ProcessInstanceRepository<*>
   @MockBean private lateinit var elementVisitRepository: ElementVisitRepository<*>

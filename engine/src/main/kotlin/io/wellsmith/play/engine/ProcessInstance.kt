@@ -1,9 +1,13 @@
 package io.wellsmith.play.engine
 
+import io.wellsmith.play.domain.ActivityStateChangeEntity
 import io.wellsmith.play.domain.ElementVisitEntity
+import io.wellsmith.play.engine.activity.ActivityLifecycle
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
+import net.sf.cglib.proxy.Enhancer
+import org.omg.spec.bpmn._20100524.model.TActivity
 import org.omg.spec.bpmn._20100524.model.TCallActivity
 import org.omg.spec.bpmn._20100524.model.TEndEvent
 import org.omg.spec.bpmn._20100524.model.TFlowElement
@@ -22,28 +26,28 @@ class ProcessInstance(internal val graph: FlowElementGraph,
                       val processId: String,
                       val bpmn20XMLEntityId: UUID,
                       val entityId: UUID,
+                      val stateChangeInterceptor: ActivityLifecycle.StateChangeInterceptor,
                       val parentProcess: TProcess? = null,
                       val fromSequenceFlow: TSequenceFlow? = null,
                       val calledBy: TCallActivity? = null,
-                      elementVisits: List<ElementVisitEntity>? = null) {
+                      elementVisits: List<ElementVisitEntity>? = null,
+                      activityStateChanges: List<ActivityStateChangeEntity>? = null) {
 
   private val visits: ConcurrentMap<TFlowElement, TreeSet<FlowElementVisit>> =
-      newVisitsMap().apply {
-        if (elementVisits != null) {
-          putAll(elementVisits
-              .map { FlowElementVisit(
-                  graph.flowElementsByKey[it.elementKey()]!!,
-                  it.time,
-                  it.fromFlowElementId?.let { graph.flowElementsByKey[it] })
-              }
-              .groupingBy { it.flowElement }
-              .aggregateTo(newVisitsMap()) { key, acc, el, first ->
-                if (first) newVisitSet().apply { add(el) }
-                else acc!!.apply { add(el) }
-              }
-          )
-        }
-      }
+      elementVisits.orEmpty()
+          .map {
+            FlowElementVisit(
+                graph.flowElementsByKey[it.elementKey()]!!,
+                it.time,
+                it.fromFlowElementId?.let { graph.flowElementsByKey[it] })
+          }
+          .groupingBy { it.flowElement }
+          .aggregateTo(newVisitsMap()) { key, acc, el, first ->
+            if (first)
+              newVisitSet().apply { add(el) }
+            else
+              acc!!.apply { add(el) }
+          }
 
   private val visitsBySplitCorrelation: ConcurrentMap<UUID, LinkedList<FlowElementVisit>> =
       visits.values
@@ -51,9 +55,59 @@ class ProcessInstance(internal val graph: FlowElementGraph,
           .filter { it.splitCorrelationId != null }
           .groupingBy { it.splitCorrelationId!! }
           .aggregateTo(ConcurrentHashMap<UUID, LinkedList<FlowElementVisit>>()) { key, acc, el, first ->
-            if (first) LinkedList<FlowElementVisit>().apply { add(el) }
-            else acc!!.apply { add(el) }
+            if (first)
+              LinkedList<FlowElementVisit>().apply { add(el) }
+            else
+              acc!!.apply { add(el) }
           }
+
+  private val activityLifecyclesByActivity: ConcurrentMap<TActivity, LinkedList<ActivityLifecycle>> =
+      activityStateChanges.orEmpty()
+          .groupBy { it.lifecycleId }
+          .map {
+            it.value.maxWith(Comparator { o1, o2 ->
+              // the latest state change recorded for a lifecycle instance
+              // is used to instantiate the lifecycle
+              when {
+                o1.time < o2.time -> -1
+                o1.time > o2.time -> 1
+                o1.time <= o2.time && o2.state.follows(o1.state) -> -1
+                o1.time >= o2.time && o1.state.follows(o2.state) -> 1
+                else -> throw IllegalStateException(
+                    "Redundant state changes: $o1, $o2")
+              }
+            })!!
+          }
+          .map { recreateActivityLifecycle(it) }
+          .groupingBy { it.activity }
+          .aggregateTo(ConcurrentHashMap<TActivity, LinkedList<ActivityLifecycle>>()) {
+            key, acc, el, first ->
+            if (first)
+              LinkedList<ActivityLifecycle>().apply { add(el) }
+            else
+              acc!!.apply { add(el) }
+          }
+
+  /**
+   * Invokes [ActivityLifecycle] secondary constructor
+   */
+  internal fun recreateActivityLifecycle(stateChangeEntity: ActivityStateChangeEntity):
+      ActivityLifecycle {
+
+    val enhancer = Enhancer()
+    enhancer.setSuperclass(ActivityLifecycle::class.java)
+    enhancer.setCallback(stateChangeInterceptor)
+    return enhancer.create(
+        arrayOf(TActivity::class.java, ActivityStateChangeEntity::class.java),
+        arrayOf(graph.flowElementsByKey[stateChangeEntity.activityId] as TActivity,
+            stateChangeEntity)
+    ) as ActivityLifecycle
+  }
+
+  private val activityLifecyclesById: ConcurrentMap<UUID, ActivityLifecycle> =
+      activityLifecyclesByActivity
+          .flatMap { it.value }
+          .associateByTo(ConcurrentHashMap()) { it.lifecycleId }
 
   fun addVisit(flowElementId: String, time: Instant,
                fromFlowElementId: String? = null, splitCorrelationId: UUID? = null) {
@@ -128,11 +182,15 @@ class ProcessInstance(internal val graph: FlowElementGraph,
       }
     }
 
-    flowElementVisit.splitCorrelationId?.let {
-      visitsBySplitCorrelation.getOrPut(it) { LinkedList() }.add(flowElementVisit)
+    synchronized(visits) {
+      flowElementVisit.splitCorrelationId?.let {
+        visitsBySplitCorrelation.getOrPut(it) { LinkedList() }
+            .add(flowElementVisit)
+      }
+      visits.computeIfAbsent(flowElementVisit.flowElement) { newVisitSet() }
+          .add(flowElementVisit)
     }
-    visits.computeIfAbsent(flowElementVisit.flowElement) { newVisitSet() }
-        .add(flowElementVisit)
+
   }
 
   fun tokenCountAt(flowElementKey: String): Int {
@@ -141,94 +199,98 @@ class ProcessInstance(internal val graph: FlowElementGraph,
 
   fun tokenCountAt(flowElement: TFlowElement): Int {
 
-    val elementVisits = visits[flowElement]
-        ?: return 0
-    if (elementVisits.isEmpty()) {
-      return 0
-    }
+    synchronized(visits) {
 
-    val followingElementsVisits = graph.nextFlowElements(flowElement)
-        .map { visits[it]
-            ?.filter { it.fromFlowElement == flowElement }
-            ?.toCollection(newVisitSet()) }
-    if (followingElementsVisits.isEmpty()) {
-      if (flowElement is TEndEvent)
+      val elementVisits = visits[flowElement]
+          ?: return 0
+      if (elementVisits.isEmpty()) {
         return 0
-      else
-        //todo - if this is an Activity then its lifecycle state will have to be considered
-        //if activity is closed then tokens are disappeared
-        return elementVisits.count()
-    }
-    else {
-      /*
-       * Initially the set of elements following this element is transformed into a TreeSet
-       * with a Comparator that returns 0 for visits with equal splitCorrelationIds.
-       * This allows multiple tokens arising from a "split" of a single token
-       * to be considered as only a single token. This is necessary here because the elements
-       * visited with the split tokens are not necessarily visited at exactly
-       * the same time.
-       *
-       * Then, a loop traverses both the element's visits (set VE)
-       * and the following elements' visits (set VF),
-       * both in reverse,
-       * and for each timestamp encountered in VE that is
-       * later than the timestamp of the last-encountered element from VF,
-       * the count is incremented.
-       * For the converse, the count is decremented.
-       * At the end, the count will be either incremented with the number of untraversed elements from VE,
-       * or decremented with the number of untraversed elements from VF.
-       */
-      var count = 0
-      val allFollowingVisits = followingElementsVisits.filterNotNull()
-          .flatMapTo(newVisitSetMatchingSplits()) { it }
-      val visitsRevIter = elementVisits.descendingIterator()
-      val followingVisitsRevIter = allFollowingVisits.descendingIterator()
-      var visit: FlowElementVisit? = null
-      var followingVisit: FlowElementVisit? = null
-      while (true) {
-        if (!visitsRevIter.hasNext() && visit == null) {
-          if (count > 0) {
-            if (followingVisit != null) count--
-            followingVisitsRevIter.forEachRemaining { count-- }
-          }
-
-          break
-        }
-        else if (visit == null) {
-          visit = visitsRevIter.next()
-        }
-
-        if (!followingVisitsRevIter.hasNext() && followingVisit == null) {
-          if (visit != null) count++
-          visitsRevIter.forEachRemaining { count++ }
-          break
-        }
-        else if (followingVisit == null) {
-          followingVisit = followingVisitsRevIter.next()
-        }
-
-        visitLoop@
-        while (visit!!.time > followingVisit!!.time) {
-          count++
-          if (!visitsRevIter.hasNext()) {
-            visit = null
-            break@visitLoop
-          }
-          visit = visitsRevIter.next()
-        }
-
-        followingVisitLoop@
-        while (followingVisit!!.time >= visit.time) {
-          count--
-          if (!followingVisitsRevIter.hasNext()) {
-            followingVisit = null
-            break@followingVisitLoop
-          }
-          followingVisit = followingVisitsRevIter.next()
-        }
       }
 
-      return count
+      val followingElementsVisits = graph.nextFlowElements(flowElement)
+          .map { visits[it]
+              ?.filter { it.fromFlowElement == flowElement }
+              ?.toCollection(newVisitSet())
+          }
+      if (followingElementsVisits.isEmpty()) {
+        if (flowElement is TEndEvent)
+          return 0
+        else
+        //todo - if this is an Activity then its lifecycle state will have to be considered
+        //if activity is closed then tokens are disappeared
+          return elementVisits.count()
+      }
+      else {
+        /*
+         * Initially the set of elements following this element is transformed into a TreeSet
+         * with a Comparator that returns 0 for visits with equal splitCorrelationIds.
+         * This allows multiple tokens arising from a "split" of a single token
+         * to be considered as only a single token. This is necessary here because the elements
+         * visited with the split tokens are not necessarily visited at exactly
+         * the same time.
+         *
+         * Then, a loop traverses both the element's visits (set VE)
+         * and the following elements' visits (set VF),
+         * both in reverse,
+         * and for each timestamp encountered in VE that is
+         * later than the timestamp of the last-encountered element from VF,
+         * the count is incremented.
+         * For the converse, the count is decremented.
+         * At the end, the count will be either incremented with the number of untraversed elements from VE,
+         * or decremented with the number of untraversed elements from VF.
+         */
+        var count = 0
+        val allFollowingVisits = followingElementsVisits.filterNotNull()
+            .flatMapTo(newVisitSetMatchingSplits()) { it }
+        val visitsRevIter = elementVisits.descendingIterator()
+        val followingVisitsRevIter = allFollowingVisits.descendingIterator()
+        var visit: FlowElementVisit? = null
+        var followingVisit: FlowElementVisit? = null
+        while (true) {
+          if (!visitsRevIter.hasNext() && visit == null) {
+            if (count > 0) {
+              if (followingVisit != null) count--
+              followingVisitsRevIter.forEachRemaining { count-- }
+            }
+
+            break
+          }
+          else if (visit == null) {
+            visit = visitsRevIter.next()
+          }
+
+          if (!followingVisitsRevIter.hasNext() && followingVisit == null) {
+            if (visit != null) count++
+            visitsRevIter.forEachRemaining { count++ }
+            break
+          }
+          else if (followingVisit == null) {
+            followingVisit = followingVisitsRevIter.next()
+          }
+
+          visitLoop@
+          while (visit!!.time > followingVisit!!.time) {
+            count++
+            if (!visitsRevIter.hasNext()) {
+              visit = null
+              break@visitLoop
+            }
+            visit = visitsRevIter.next()
+          }
+
+          followingVisitLoop@
+          while (followingVisit!!.time >= visit.time) {
+            count--
+            if (!followingVisitsRevIter.hasNext()) {
+              followingVisit = null
+              break@followingVisitLoop
+            }
+            followingVisit = followingVisitsRevIter.next()
+          }
+        }
+
+        return count
+      }
     }
 
   }
@@ -287,6 +349,22 @@ class ProcessInstance(internal val graph: FlowElementGraph,
     // for the given flowElement and time
     throw IllegalStateException()
   }
+
+  internal fun getActivityLifecycles(activity: TActivity): List<ActivityLifecycle> {
+    val activityLifecycles =
+        activityLifecyclesByActivity.getOrPut(activity) { LinkedList() }
+    return activityLifecycles
+  }
+
+  internal fun addActivityLifecycle(activity: TActivity, activityLifecycle: ActivityLifecycle) {
+    activityLifecyclesByActivity[activity]!!.add(activityLifecycle)
+    if (activityLifecyclesById.put(activityLifecycle.lifecycleId, activityLifecycle) != null) {
+      throw IllegalStateException("Duplicate ActivityLifecycle")
+    }
+  }
+
+  internal fun getActivityLifecycle(lifecycleId: UUID) =
+      activityLifecyclesById[lifecycleId]!!
 }
 
 private fun newVisitSet() =

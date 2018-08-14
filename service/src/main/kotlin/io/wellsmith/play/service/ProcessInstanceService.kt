@@ -1,19 +1,30 @@
 package io.wellsmith.play.service
 
+import io.wellsmith.play.domain.ActivityStateChangeEntity
+import io.wellsmith.play.engine.ActiveProcessInstanceCache
+import io.wellsmith.play.engine.PlayEngineConfiguration
+import io.wellsmith.play.engine.ProcessCache
 import io.wellsmith.play.engine.ProcessInstance
-import io.wellsmith.play.engine.visitor.Visitors
-import io.wellsmith.play.persistence.api.ElementVisitRepository
-import io.wellsmith.play.persistence.api.ProcessInstanceRepository
+import io.wellsmith.play.engine.activity.ActivityLifecycle
+import io.wellsmith.play.engine.visitor.VisitorsWrapper
+import io.wellsmith.play.persistence.api.ActivityStateChangeRepository
 import io.wellsmith.play.service.response.InstantiatedProcess
+import org.springframework.data.repository.CrudRepository
 import org.springframework.stereotype.Service
 import java.util.UUID
 
 @Service
 class ProcessInstanceService(
-    private val processInstanceRepository: ProcessInstanceRepository<*>,
     private val processCache: ProcessCache,
-    private val visitors: Visitors,
-    private val elementVisitRepository: ElementVisitRepository<*>) {
+    private val visitorsWrapper: VisitorsWrapper,
+    private val activeProcessInstanceCache: ActiveProcessInstanceCache,
+    private val activityStateChangeRepository: ActivityStateChangeRepository<*>,
+    playEngineConfiguration: PlayEngineConfiguration) {
+
+  private val entityFactory = playEngineConfiguration.entityFactory
+  private val clock = playEngineConfiguration.clock
+  private val activityStateChangeHandlingQueue = playEngineConfiguration.activityStateChangeQueue()
+  private val synchronizer = playEngineConfiguration.synchronizer()
 
   /**
    * @return  A process instance entity ID
@@ -24,35 +35,29 @@ class ProcessInstanceService(
 
     val processInstanceEntityId = UUID.randomUUID()
     val processInstance = ProcessInstance(flowElementGraph, processId, bpmn20xmlEntityId,
-        processInstanceEntityId, null, null, null, null)
+        processInstanceEntityId,
+        @Suppress("UNCHECKED_CAST") ActivityLifecycle.StateChangeInterceptor(
+            activityStateChangeRepository as CrudRepository<ActivityStateChangeEntity, UUID>,
+            entityFactory, processInstanceEntityId, clock, activityStateChangeHandlingQueue),
+        null, null, null, null, null)
 
-    // todo - Visitors should be internal to the engine.
-    // make a wrapper that doesn't allow arbitrary visit calls
-    val futures = visitors.visitorOf(processInstance).visit(null)
-    // todo - deal with futures (expose exceptions)
+    visitorsWrapper.visitProcess(processInstance)
+
+    activeProcessInstanceCache.put(processInstanceEntityId, processInstance)
 
     return InstantiatedProcess(bpmn20xmlEntityId, processId, processInstanceEntityId)
   }
 
   fun isCompleted(processInstanceEntityId: UUID): Boolean {
 
-    val processInstanceEntity =
-        processInstanceRepository.findById(processInstanceEntityId)
-            .orElseThrow { EntityNotFoundException(processInstanceEntityId.toString()) }
-    val elementVisits = elementVisitRepository.findByProcessInstanceEntityId(
-        processInstanceEntityId)
-    val graph = processCache.getGraph(
-        processInstanceEntity.bpmn20XMLEntityId, processInstanceEntity.processId)
-    val processInstance = ProcessInstance(
-        graph,
-        processInstanceEntity.processId,
-        processInstanceEntity.bpmn20XMLEntityId,
-        processInstanceEntityId,
-        null, /*todo*/
-        null,
-        null,
-        elementVisits)
+    val processInstance = activeProcessInstanceCache.get(processInstanceEntityId)
 
-    return processInstance.isCompleted()
+    synchronizer.lock("processInstance.isCompleted()")
+    try {
+      return processInstance.isCompleted()
+    }
+    finally {
+      synchronizer.unlock("processInstance.isCompleted()")
+    }
   }
 }

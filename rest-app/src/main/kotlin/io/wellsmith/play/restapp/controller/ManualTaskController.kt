@@ -15,7 +15,7 @@ import java.util.UUID
 @RequestMapping(path = ["/bpmn20/manualTask"])
 class ManualTaskController(private val manualTaskService: ManualTaskService) {
 
-  @PostMapping(path = ["/{processInstanceEntityId}/{manualTaskId}/workIsDone"])
+  @PostMapping(path = ["/{processInstanceEntityId}/{manualTaskId}/completeWork"])
   fun workIsDone(@PathVariable("processInstanceEntityId") processInstanceEntityId: UUID,
                  @PathVariable("manualTaskId") manualTaskId: String
   ): HttpEntity<Any> {

@@ -8,36 +8,23 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.Future
 
-class ManualTaskVisitor(processInstance: ProcessInstance,
-                        playEngineConfiguration: PlayEngineConfiguration,
-                        visitors: Visitors,
-                        el: TManualTask):
-    TaskVisitor(processInstance, playEngineConfiguration, visitors, el) {
+internal class ManualTaskVisitor(
+    processInstance: ProcessInstance,
+    playEngineConfiguration: PlayEngineConfiguration,
+    visitors: Visitors,
+    el: TManualTask
+): TaskVisitor(processInstance, playEngineConfiguration, visitors, el) {
 
   companion object {
     @JvmField
     val logger = LoggerFactory.getLogger(ManualTaskVisitor::class.java)
   }
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?) {
 
-    val futures = mutableListOf<Future<*>>()
-    super.visit(fromFlowElement).let { futures.addAll(it) }
+    super.visit(fromFlowElement)
 
     // "A Manual Task is a Task that is not managed by any business process engine."
     // so, the token must stay on this Task until it is manually completed.
-
-    return futures
-  }
-
-  fun workIsDone(): List<Future<*>> {
-    // todo - get an Activity "Lifecycle" from the ProcessInstance & update it...
-    // e.g.: processInstance.activityLifecycle(el).complete()
-    // this will be a major story
-
-    val futures = mutableListOf<Future<*>>()
-    visitNextSequenceFlows(futures)
-
-    return futures
   }
 }

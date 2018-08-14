@@ -1,12 +1,25 @@
 package io.wellsmith.play.engine
 
+import io.wellsmith.play.domain.ActivityStateChangeEntity
 import io.wellsmith.play.domain.elementKeyOf
+import io.wellsmith.play.engine.activity.ActivityLifecycle
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.mockito.Mock
+import org.mockito.junit.jupiter.MockitoExtension
+import org.omg.spec.bpmn._20100524.model.ObjectFactory
 import org.omg.spec.bpmn._20100524.model.TProcess
+import org.omg.spec.bpmn._20100524.model.TTask
+import java.time.Instant
 import java.util.UUID
 
+@ExtendWith(MockitoExtension::class)
 class ProcessInstanceTest {
+
+  private val objectFactory = ObjectFactory()
+  @Mock
+  private lateinit var stateChangeInterceptor: ActivityLifecycle.StateChangeInterceptor
 
   @Test
   fun `test tokenCountAt with circular process`() {
@@ -15,7 +28,8 @@ class ProcessInstanceTest {
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID(),
+        stateChangeInterceptor)
 
     graph.allIdsOfFlowNodesToVisitUponProcessInstantiation().forEach {
       processInstance.addVisit(FlowElementVisit(
@@ -84,7 +98,8 @@ class ProcessInstanceTest {
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID(),
+        stateChangeInterceptor)
 
     // cannot visit a node ahead of nodes with no tokens
     Assertions.assertThrows(IllegalArgumentException::class.java) {
@@ -152,7 +167,8 @@ class ProcessInstanceTest {
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID(),
+        stateChangeInterceptor)
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisitNow("hi")
@@ -172,7 +188,8 @@ class ProcessInstanceTest {
     val process = definitions.rootElement
         .find { it.value is TProcess }!!.value as TProcess
     val graph = FlowElementGraph(process)
-    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID())
+    val processInstance = ProcessInstance(graph, process.id, UUID.randomUUID(), UUID.randomUUID(),
+        stateChangeInterceptor)
     Assertions.assertFalse(processInstance.isCompleted())
 
     processInstance.addVisitNow("hi")
@@ -189,6 +206,40 @@ class ProcessInstanceTest {
 
     processInstance.addVisitNow("bye", elementKeyOf("manual-task-1", "bye"))
     Assertions.assertTrue(processInstance.isCompleted())
+  }
+
+  @Test
+  fun `recreateActivityLifecycle should invoke the right constructor`() {
+
+    val process = TProcess()
+        .apply { flowElement.add(
+            objectFactory.createTask(TTask()
+                .apply { id = "id" })) }
+    val entityId = UUID.randomUUID()
+    val processInstance = ProcessInstance(
+        FlowElementGraph(process), "id", UUID.randomUUID(), entityId,
+        stateChangeInterceptor)
+    val stateChange = object: ActivityStateChangeEntity {
+      override val processInstanceEntityId = entityId
+      override val activityId = "id"
+      override val fromFlowElementKey: String? = null
+      override val time = Instant.now()
+      override val lifecycleId = UUID.randomUUID()
+      override val state = ActivityStateChangeEntity.State.COMPLETING
+      override val tokensArrived = 1
+      override val inputSetsNeedProcessing = false
+      override val withdrawn = false
+      override val workDone = true
+      override val interruptedByError = false
+      override val interruptedByNonError = false
+      override val preCompletionStepsDone = false
+      override val terminationStepsDone = false
+      override val id = UUID.randomUUID()
+    }
+
+    val activityLifecycle = processInstance.recreateActivityLifecycle(stateChange)
+    Assertions.assertTrue(activityLifecycle is net.sf.cglib.proxy.Factory)
+    Assertions.assertEquals(stateChange.activityId, activityLifecycle.activity.id)
   }
 
   private fun ProcessInstance.addVisitNow(flowElementId: String,

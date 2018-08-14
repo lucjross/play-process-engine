@@ -6,7 +6,7 @@ import org.omg.spec.bpmn._20100524.model.TFlowElement
 import java.util.UUID
 import java.util.concurrent.Future
 
-abstract class BaseElementVisitor<T: TBaseElement>
+internal abstract class BaseElementVisitor<T: TBaseElement>
 internal constructor(val processInstance: ProcessInstance,
                      val el: T) {
 
@@ -31,5 +31,5 @@ internal constructor(val processInstance: ProcessInstance,
    * upon process instantiation. An [IllegalArgumentException] is likely to arise
    * if the parameter is not provided when required.
    */
-  abstract fun visit(fromFlowElement: TFlowElement?): List<Future<*>>
+  internal abstract fun visit(fromFlowElement: TFlowElement?)
 }

@@ -1,5 +1,6 @@
 package io.wellsmith.play.persistence.api
 
+import io.wellsmith.play.domain.ActivityStateChangeEntity
 import io.wellsmith.play.domain.BPMN20XMLEntity
 import io.wellsmith.play.domain.ElementVisitEntity
 import io.wellsmith.play.domain.ProcessInstanceEntity
@@ -27,4 +28,20 @@ interface EntityFactory {
                          fromFlowElementKey: String?,
                          splitCorrelationId: UUID?,
                          time: Instant): ElementVisitEntity
+
+  fun activityStateChangeEntity(id: UUID,
+                                processInstanceEntityId: UUID,
+                                activityId: String,
+                                fromFlowElementKey: String?,
+                                time: Instant,
+                                lifecycleId: UUID,
+                                state: ActivityStateChangeEntity.State,
+                                tokensArrived: Int,
+                                inputSetsNeedProcessing: Boolean,
+                                withdrawn: Boolean,
+                                workDone: Boolean,
+                                interruptedByError: Boolean,
+                                interruptedByNonError: Boolean,
+                                preCompletionStepsDone: Boolean,
+                                terminationStepsDone: Boolean): ActivityStateChangeEntity
 }

@@ -5,7 +5,10 @@ import com.nhaarman.mockitokotlin2.doReturn
 import com.nhaarman.mockitokotlin2.whenever
 import io.wellsmith.play.domain.ElementVisitEntity
 import io.wellsmith.play.domain.elementKeyOf
+import io.wellsmith.play.engine.activity.ActivityLifecycle
 import io.wellsmith.play.engine.now
+import io.wellsmith.play.engine.testhook.Synchronizer
+import io.wellsmith.play.persistence.api.ActivityStateChangeRepository
 import io.wellsmith.play.persistence.api.BPMN20XMLRepository
 import io.wellsmith.play.persistence.api.ElementVisitRepository
 import io.wellsmith.play.persistence.api.EntityFactory
@@ -39,6 +42,10 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers
 import java.time.temporal.ChronoUnit
 import java.util.Optional
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Tests from web layer to service layer -- repositories mocked
@@ -56,6 +63,10 @@ class ProcessInstanceControllerTest {
   @Autowired
   private lateinit var objectMapper: ObjectMapper
 
+  @Autowired
+  private lateinit var synchronizer: Synchronizer
+
+  @MockBean private lateinit var activityStateChangeRepository: ActivityStateChangeRepository<*>
   @MockBean private lateinit var bpmn20XMLRepository: BPMN20XMLRepository<*>
   @MockBean private lateinit var processInstanceRepository: ProcessInstanceRepository<*>
   @MockBean private lateinit var elementVisitRepository: ElementVisitRepository<*>
@@ -82,16 +93,20 @@ class ProcessInstanceControllerTest {
     elementVisitEntities.addAndStub("hi", instantiatedProcess, null)
     elementVisitEntities.addAndStub("hi", "manual-task-1", instantiatedProcess, "hi")
     elementVisitEntities.addAndStub("manual-task-1", instantiatedProcess, elementKeyOf("hi", "manual-task-1"))
+
+    synchronizer.lock("processInstance.isCompleted()")
     val completed1 = getCompleted(instantiatedProcess)
     Assertions.assertFalse(completed1)
 
     // complete Manual Task
     mockMvc.perform(
-        MockMvcRequestBuilders.post("/bpmn20/manualTask/${instantiatedProcess.processInstanceEntityId}/manual-task-1/workIsDone"))
+        MockMvcRequestBuilders.post("/bpmn20/manualTask/${instantiatedProcess.processInstanceEntityId}/manual-task-1/completeWork"))
         .andExpect(MockMvcResultMatchers.status().isOk)
 
     elementVisitEntities.addAndStub("manual-task-1", "bye", instantiatedProcess, "manual-task-1")
     elementVisitEntities.addAndStub("bye", instantiatedProcess, elementKeyOf("manual-task-1", "bye"))
+
+    synchronizer.lock("processInstance.isCompleted()")
     val completed2 = getCompleted(instantiatedProcess)
     Assertions.assertTrue(completed2)
   }
@@ -186,6 +201,21 @@ class ProcessInstanceControllerTest {
 
     @Bean
     fun entityFactory(): EntityFactory = CassandraEntityFactory()
+
+    @Bean
+    fun testSynchronizer(): Synchronizer = object: TestSynchronizer() {
+
+      override fun update(action: String, value: Any?) {
+        when (action) {
+          "state change: manual-task-1 to ${ActivityLifecycle.State.ACTIVE}" -> {
+            unlock("processInstance.isCompleted()")
+          }
+          "visit: bye" -> {
+            unlock("processInstance.isCompleted()")
+          }
+        }
+      }
+    }
   }
 
 }

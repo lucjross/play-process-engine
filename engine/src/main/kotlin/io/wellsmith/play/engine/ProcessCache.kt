@@ -1,14 +1,12 @@
-package io.wellsmith.play.service
+package io.wellsmith.play.engine
 
-import io.wellsmith.play.engine.FlowElementGraph
+import io.wellsmith.play.persistence.api.BPMN20XMLRepository
 import io.wellsmith.play.serde.BPMN20Serde
 import org.omg.spec.bpmn._20100524.model.TProcess
-import org.springframework.stereotype.Component
 import java.util.UUID
 import java.util.WeakHashMap
 
-@Component
-class ProcessCache(private val bpmn20XMLService: BPMN20XMLService<*>,
+class ProcessCache(private val bpmn20XMLRepository: BPMN20XMLRepository<*>,
                    private val bpmn20Serde: BPMN20Serde) {
 
   /**
@@ -18,16 +16,19 @@ class ProcessCache(private val bpmn20XMLService: BPMN20XMLService<*>,
    */
   private val bpmn20ProcessGraphCache = WeakHashMap<Pair<UUID, String>, FlowElementGraph>()
 
-  internal fun getGraph(bpmn20xmlEntityId: UUID, processId: String) =
+  fun getGraph(bpmn20xmlEntityId: UUID, processId: String): FlowElementGraph =
       bpmn20ProcessGraphCache.computeIfAbsent(
           bpmn20xmlEntityId to processId) {
         FlowElementGraph(
             bpmn20Serde.deserialize(
-                bpmn20XMLService.getDefinitionsXML(bpmn20xmlEntityId)
+                bpmn20XMLRepository.findById(bpmn20xmlEntityId)
+                    .map { it.document }
+                    .orElseThrow { IllegalStateException(
+                        "Entity not found for bpmn20XMLEntityId $bpmn20xmlEntityId") }
                     .byteInputStream(Charsets.UTF_8))
                 .rootElement
-                .find { it.value.id == processId }?.value
-                as TProcess?
+                .find { it.value.id == processId }
+                ?.value as TProcess?
                 ?: throw IllegalStateException("""
                   Process element with ID $processId not found in Definitions element
                   on BPMN20XMLEntity with ID $bpmn20xmlEntityId

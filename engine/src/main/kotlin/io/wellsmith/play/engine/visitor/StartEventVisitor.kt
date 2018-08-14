@@ -13,11 +13,5 @@ internal class StartEventVisitor(processInstance: ProcessInstance,
                                  el: TStartEvent):
     CatchEventVisitor<TStartEvent>(processInstance, playEngineConfiguration, visitors, el) {
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
 
-    val futures = mutableListOf<Future<*>>()
-    super.visit(fromFlowElement).let { futures.addAll(it) }
-
-    return futures
-  }
 }

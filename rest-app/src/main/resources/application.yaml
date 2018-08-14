@@ -5,3 +5,7 @@ spring:
       port: 9042
       keyspace-name: play
       schema-action: create_if_not_exists
+
+logging:
+  level:
+    io.wellsmith: debug

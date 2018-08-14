@@ -17,28 +17,25 @@ internal class ProcessVisitor(
 ): BaseElementVisitor<TProcess>(processInstance, el) {
 
   private val processInstanceRepository = playEngineConfiguration.repositoryOf(ProcessInstanceEntity::class)
+  private val visitationQueue = playEngineConfiguration.visitationQueue()
   private val entityFactory = playEngineConfiguration.entityFactory
   private val executorService = playEngineConfiguration.executorService
   private val clock = playEngineConfiguration.clock
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?) {
 
-    val futures = mutableListOf<Future<*>>()
-    executorService.submit(Callable<ProcessInstanceEntity> {
-      processInstanceRepository.save(
-          entityFactory.processInstanceEntity(
-              processInstance.entityId,
-              processInstance.bpmn20XMLEntityId,
-              processInstance.processId))
-    }).let { futures.add(it) }
+    processInstanceRepository.save(
+        entityFactory.processInstanceEntity(
+            processInstance.entityId,
+            processInstance.bpmn20XMLEntityId,
+            processInstance.processId))
 
     val instantiationVisitIds =
         processInstance.graph.allIdsOfFlowNodesToVisitUponProcessInstantiation()
     instantiationVisitIds.forEach {
-      visitors.visitorOf(processInstance, it).visit(null)
-          .forEach { futures.add(it) }
+      visitationQueue.queue(Visitation(it, this::class.simpleName!!, processInstance.entityId) {
+        visitors.visitorOf(processInstance, it).visit(null)
+      })
     }
-
-    return futures
   }
 }

@@ -7,6 +7,7 @@ import io.wellsmith.play.engine.ProcessInstance
 import io.wellsmith.play.engine.compliance.Compliant
 import io.wellsmith.play.engine.compliance.Level
 import io.wellsmith.play.engine.compliance.Spec
+import io.wellsmith.play.engine.elementKey
 import org.omg.spec.bpmn._20100524.model.TFlowElement
 import org.omg.spec.bpmn._20100524.model.TFlowNode
 import org.omg.spec.bpmn._20100524.model.TSequenceFlow
@@ -25,26 +26,24 @@ internal class SequenceFlowVisitor(processInstance: ProcessInstance,
 
   private val executorService = playEngineConfiguration.executorService
   private val elementVisitRepository = playEngineConfiguration.repositoryOf(ElementVisitEntity::class)
+  private val visitationQueue = playEngineConfiguration.visitationQueue()
   private val entityFactory = playEngineConfiguration.entityFactory
   private val clock = playEngineConfiguration.clock
 
-  override fun visit(fromFlowElement: TFlowElement?): List<Future<*>> {
+  override fun visit(fromFlowElement: TFlowElement?) {
 
-    val futures = mutableListOf<Future<*>>()
-    executorService.submit(Callable<ElementVisitEntity> {
-      elementVisitRepository.save(
-          entityFactory.elementVisitEntity(
-              UUID.randomUUID(),
-              processInstance.bpmn20XMLEntityId,
-              processInstance.processId,
-              processInstance.entityId,
-              el.id,
-              (el.sourceRef as TFlowNode).id,
-              (el.targetRef as TFlowNode).id,
-              null,
-              splitCorrelationId,
-              Instant.now(clock)))
-    }).let { futures.add(it) }
+    elementVisitRepository.save(
+        entityFactory.elementVisitEntity(
+            UUID.randomUUID(),
+            processInstance.bpmn20XMLEntityId,
+            processInstance.processId,
+            processInstance.entityId,
+            el.id,
+            (el.sourceRef as TFlowNode).id,
+            (el.targetRef as TFlowNode).id,
+            fromFlowElement?.elementKey(),
+            splitCorrelationId,
+            Instant.now(clock)))
 
     processInstance.addVisit(FlowElementVisit(el, Instant.now(clock), fromFlowElement, splitCorrelationId))
 
@@ -52,9 +51,10 @@ internal class SequenceFlowVisitor(processInstance: ProcessInstance,
       TODO()
     }
 
-    visitors.visitorOf(processInstance, el.targetRef as TFlowNode).visit(el)
-        .let { futures.addAll(it) }
-
-    return futures
+    val targetNode = el.targetRef as TFlowNode
+    visitationQueue.queue(Visitation(
+        targetNode.elementKey(), this::class.simpleName!!, processInstance.entityId) {
+      visitors.visitorOf(processInstance, targetNode).visit(el)
+    })
   }
 }

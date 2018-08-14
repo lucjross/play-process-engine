@@ -12,7 +12,7 @@ import org.omg.spec.bpmn._20100524.model.TStartEvent
 import org.omg.spec.bpmn._20100524.model.TTask
 import java.util.UUID
 
-class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
+internal class Visitors(val playEngineConfiguration: PlayEngineConfiguration) {
 
   fun visitorOf(processInstance: ProcessInstance,
                 flowNodeId: String): BaseElementVisitor<*> {
